@@ -1,0 +1,89 @@
+{
+    "extName": {
+        "message": "ChatGPT Message Cleaner"
+    },
+    "extDescription": {
+        "message": "Clean up old messages to reduce clutter and improve performance, helping ChatGPT run more smoothly."
+    },
+    "title": {
+        "message": "Message Cleaner"
+    },
+    "keepLabel": {
+        "message": "Keep up to"
+    },
+    "modeLabel": {
+        "message": "Mode"
+    },
+    "modeHide": {
+        "message": "Hide (restorable)"
+    },
+    "modeDelete": {
+        "message": "Clear (no re-display)"
+    },
+    "notifyLabel": {
+        "message": "Show notifications"
+    },
+    "apply": {
+        "message": "Apply"
+    },
+    "tipHideMain": {
+        "message": "Excess messages will be hidden"
+    },
+    "tipHideEffect": {
+        "message": "Reduces screen clutter; can be restored anytime via the top button"
+    },
+    "tipHideDetail": {
+        "message": "Messages will be hidden from the page but still remain in the DOM.\nInteractions are temporarily disabled (inert, aria-hidden), with styles (HIDDEN, INERT) applied as markers.\nWhen needed, you can bring them back instantly with the “Show previous” button, no reloading required.\nThis method only hides the view and interaction — the messages and their events are still there, continuing to use some resources."
+    },
+    "tipDeleteMain": {
+        "message": "Excess messages will be cleared from the page"
+    },
+    "tipDeleteEffect": {
+        "message": "Frees memory and system resources; suited for long and heavy conversations"
+    },
+    "tipDeleteDetail": {
+        "message": "Messages, along with their related data and event bindings, will be completely removed from the DOM (via Element.remove()).\nThey no longer occupy any browser DOM resources.\nFor large cleanups, removal runs in chunks during idle time to reduce visible lag.\nThis mode only affects the webpage content and does not touch server or account data.\nIf a conversation grows too large, performance issues may still occur due to ChatGPT’s own design."
+    },
+    "tipReload": {
+        "message": "After switching modes, refreshing the page is recommended for best results"
+    },
+    "noteLabel": {
+        "message": "Note"
+    },
+    "showMoreBtn": {
+        "message": "Show previous"
+    },
+    "messagesLabel": {
+        "message": "messages"
+    },
+    "hiddenLabel": {
+        "message": "hidden"
+    },
+    "showMoreDone": {
+        "message": "All messages are visible"
+    },
+    "toastAutoPrefix": {
+        "message": "Auto:"
+    },
+    "toastManualPrefix": {
+        "message": "Manual:"
+    },
+    "toastHidden": {
+        "message": "Hidden"
+    },
+    "toastRestored": {
+        "message": "Restored"
+    },
+    "toastDeleted": {
+        "message": "Deleted"
+    },
+    "toastNoChanges": {
+        "message": "No changes"
+    },
+    "toastApplied": {
+        "message": "Applied"
+    },
+    "toastApplyFailed": {
+        "message": "Apply failed, check console"
+    }
+}

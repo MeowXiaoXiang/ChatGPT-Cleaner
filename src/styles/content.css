@@ -1,0 +1,324 @@
+/* ------------------------------------------------------------
+    Chat Cleaner UI Styles
+   ------------------------------------------------------------ */
+
+/* 懸浮球 */
+.ccx-ball {
+	position: fixed;
+	right: calc(50px + env(safe-area-inset-right, 0px));
+	bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	background: light-dark(#f3f3f3, #414141);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	user-select: none;
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+	z-index: 1000;
+}
+.ccx-ball.dragging {
+	opacity: 0.75;
+	cursor: grabbing;
+}
+/* 防止拖出幽靈圖 */
+.ccx-ball img {
+	pointer-events: none;
+	-webkit-user-drag: none;
+	user-select: none;
+}
+
+/* 控制面板（固定 240px） */
+.ccx-panel {
+	position: fixed;
+	left: 0;
+	top: 0;
+	width: 240px;
+	background: light-dark(#f9f9f9, #303030);
+	color: light-dark(#333333, #eee);
+	border-radius: 12px;
+	box-shadow: light-dark(
+		0 10px 30px rgba(0, 0, 0, 0.15),
+		0 10px 30px rgba(0, 0, 0, 0.35)
+	);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.2s ease;
+	font-size: 13px;
+	z-index: 1001;
+}
+.ccx-panel.show {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.ccx-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 10px;
+	font-weight: 700;
+	border-bottom: light-dark(1px solid #f0f0f0, 1px solid #333);
+}
+
+.ccx-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.ccx-close,
+.ccx-debug {
+	background: transparent;
+	border: 1px solid transparent; /* 先保留邊框，避免跳動 */
+	border-radius: 6px;
+	color: light-dark(#666666, #bbb);
+	cursor: pointer;
+	font-size: 14px;
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.ccx-close:hover,
+.ccx-debug:hover {
+	color: light-dark(#333333, #ddd);
+	border-color: light-dark(#aaa, #555); /* hover 時顯示出邊框 */
+	background: light-dark(#f0f0f0, #444); /* 淺背景／深背景 */
+}
+
+.ccx-body {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+}
+
+/* 表單元件 */
+.ccx-body input[type="number"],
+.ccx-body select {
+	width: 100%;
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: light-dark(#f8f8f8, #2b2b2b);
+	color: light-dark(#333333, #eee);
+	border: light-dark(1px solid #ddd, 1px solid #555);
+	transition: border-color 0.2s, box-shadow 0.2s;
+	box-sizing: border-box;
+}
+.ccx-body input[type="number"]:focus,
+.ccx-body select:focus {
+	outline: none;
+	border-color: light-dark(#999, #888);
+	box-shadow: light-dark(
+		0 0 0 2px rgba(0, 0, 0, 0.1),
+		0 0 0 2px rgba(255, 255, 255, 0.15)
+	);
+}
+
+/* 下拉選單（預設 Light） */
+.ccx-body select {
+	appearance: none;
+	-moz-appearance: none;
+	-webkit-appearance: none;
+	background-color: #f8f8f8;
+	background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23666'><path d='M2 4l4 4 4-4z'/></svg>");
+	background-repeat: no-repeat;
+	background-position: right 8px center;
+	background-size: 12px;
+	padding-right: 28px;
+	color: #333;
+	border: 1px solid #ddd;
+}
+
+/* Dark 模式（雙保險：class + style） */
+html.dark .ccx-body select,
+html[style*="color-scheme: dark"] .ccx-body select {
+	background-color: #2b2b2b;
+	background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23aaa'><path d='M2 4l4 4 4-4z'/></svg>");
+	color: #eee;
+	border-color: #555;
+}
+
+/* Option */
+.ccx-body select option {
+	background: #fff;
+	color: #333;
+}
+html.dark .ccx-body select option,
+html[style*="color-scheme: dark"] .ccx-body select option {
+	background: #1f1f1f;
+	color: #eee;
+}
+
+/* checkbox */
+.ccx-body input[type="checkbox"] {
+	accent-color: #43a047;
+	transform: scale(1.1);
+	cursor: pointer;
+}
+
+/* 按鈕 */
+.ccx-body button {
+	padding: 8px;
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+	background: #43a047;
+	color: #fff;
+	transition: background 0.2s;
+}
+.ccx-body button:hover {
+	background: #388e3c;
+}
+
+/* 說明 */
+.ccx-tip {
+	font-size: 11px;
+	color: light-dark(#777777, #aaa);
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.ccx-tip hr {
+	border: none;
+	border-top: light-dark(1px solid #e0e0e0, 1px solid #333);
+	margin: 4px 0;
+}
+
+/* Toast */
+.ccx-toast-container {
+	position: fixed;
+	top: 22px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	z-index: 1200; /* 合理層級，不用 9999 */
+	pointer-events: none;
+}
+.ccx-toast {
+	padding: 8px 12px;
+	border-radius: 8px;
+	color: #fff;
+	font-size: 13px;
+	opacity: 0;
+	transform: translateY(-10px);
+	transition: opacity 0.25s, transform 0.25s;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+	white-space: nowrap;
+}
+.ccx-toast.show {
+	opacity: 1;
+	transform: translateY(0);
+}
+.ccx-toast.ok,
+.ccx-toast.hide {
+	background: #4caf50;
+}
+.ccx-toast.delete {
+	background: #ff7043;
+}
+.ccx-toast.err {
+	background: #f44336;
+}
+
+/* Tooltip */
+.ccx-hint {
+	display: inline-flex;
+	align-items: center;
+	position: relative;
+	margin-left: 4px;
+	cursor: help;
+	opacity: 0.6;
+}
+.ccx-hint:hover {
+	opacity: 1;
+}
+.ccx-tooltip {
+	position: absolute;
+	bottom: calc(100% + 8px);
+	left: 0;
+	background: rgba(0, 0, 0, 0.85);
+	color: #fff;
+	font-size: 12px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	box-sizing: border-box;
+	width: 200px;
+	writing-mode: horizontal-tb;
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+	word-break: normal;
+	line-break: auto;
+	text-align: left;
+	opacity: 0;
+	transition: opacity 0.2s;
+	pointer-events: none;
+	inset-inline-start: 0;
+	z-index: 1100;
+}
+.ccx-hint:hover .ccx-tooltip {
+	opacity: 1;
+}
+
+/* 使用者偏好：減少動畫 */
+@media (prefers-reduced-motion: reduce) {
+	.ccx-ball,
+	.ccx-panel,
+	.ccx-toast {
+		transition: none !important;
+	}
+}
+
+/* ------------------------------------------------------------
+    內嵌控制列（雙按鈕）— 不影響既有 .ccx-body 表單樣式
+   ------------------------------------------------------------ */
+.ccx-inline-controls {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin: 8px 0;
+}
+
+/* 共用按鈕樣式（行內雙按鈕專用；與設定面板 .ccx-body button 分離） */
+.ccx-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.35rem 0.6rem;
+	border-radius: 8px;
+	border: 1px solid var(--ccx-border, #d0d7de);
+	background: var(--ccx-bg, #f8f9fb);
+	color: var(--ccx-fg, #24292f);
+	font-size: 12px;
+	line-height: 1;
+	cursor: pointer;
+	user-select: none;
+}
+
+.ccx-btn--primary {
+	background: var(--ccx-primary, #2f81f7);
+	border-color: transparent;
+	color: #fff;
+}
+
+.ccx-btn--ghost {
+	background: transparent;
+}
+
+.ccx-btn:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+/* 讓兩顆按鈕之間有間距 */
+.ccx-btn + .ccx-btn {
+	margin-left: 0.5rem;
+}

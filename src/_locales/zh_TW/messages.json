@@ -1,0 +1,89 @@
+{
+    "extName": {
+        "message": "ChatGPT 訊息清理小工具"
+    },
+    "extDescription": {
+        "message": "輕鬆清理舊訊息，減少畫面與系統負擔，讓 ChatGPT 更順暢"
+    },
+    "title": {
+        "message": "訊息清理小工具"
+    },
+    "keepLabel": {
+        "message": "最多保留"
+    },
+    "modeLabel": {
+        "message": "模式"
+    },
+    "modeHide": {
+        "message": "隱藏（可隨時復原）"
+    },
+    "modeDelete": {
+        "message": "清除（不保留顯示）"
+    },
+    "notifyLabel": {
+        "message": "顯示通知"
+    },
+    "apply": {
+        "message": "套用"
+    },
+    "tipHideMain": {
+        "message": "超出訊息會被隱藏"
+    },
+    "tipHideEffect": {
+        "message": "減少畫面負擔，可透過頂部按鈕隨時顯示"
+    },
+    "tipHideDetail": {
+        "message": "訊息會從畫面中隱藏，但實際仍保留在網頁 DOM 結構內\n互動會暫時停用（inert, aria-hidden），相關樣式（HIDDEN, INERT）會同步標記\n需要時，可透過對話最前面的「顯示先前」將訊息完整還原\n此方式僅移除視覺與互動，訊息本身與事件仍存在，仍佔用部分資源"
+    },
+    "tipDeleteMain": {
+        "message": "超出訊息會直接從頁面中清除"
+    },
+    "tipDeleteEffect": {
+        "message": "釋放記憶體與系統資源，適合長時間大量對話"
+    },
+    "tipDeleteDetail": {
+        "message": "訊息會連同相關資料與事件綁定一併從網頁 DOM 中移除\n（使用 Element.remove()）\n不再佔用任何瀏覽器 DOM 資源\n大量清除時，採用分段 idle 處理，避免造成畫面卡頓\n此模式僅影響網頁前端內容，不會影響伺服器或帳號資料\n若對話本身過大，仍可能因 ChatGPT 內部機制導致卡頓"
+    },
+    "tipReload": {
+        "message": "切換模式後建議重新整理頁面，以確保效果最佳"
+    },
+    "noteLabel": {
+        "message": "提示"
+    },
+    "showMoreBtn": {
+        "message": "顯示先前"
+    },
+    "messagesLabel": {
+        "message": "訊息"
+    },
+    "hiddenLabel": {
+        "message": "已隱藏"
+    },
+    "showMoreDone": {
+        "message": "所有訊息已顯示"
+    },
+    "toastAutoPrefix": {
+        "message": "自動:"
+    },
+    "toastManualPrefix": {
+        "message": "手動:"
+    },
+    "toastHidden": {
+        "message": "已隱藏"
+    },
+    "toastRestored": {
+        "message": "已復原"
+    },
+    "toastDeleted": {
+        "message": "已刪除"
+    },
+    "toastNoChanges": {
+        "message": "無變化"
+    },
+    "toastApplied": {
+        "message": "套用成功"
+    },
+    "toastApplyFailed": {
+        "message": "套用失敗，請查看主控台"
+    }
+}

@@ -1,0 +1,24 @@
+{
+    "name": "chatgpt-cleaner",
+    "version": "1.0.0",
+    "description": "ChatGPT 訊息清理小工具",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "clean": "rimraf dist",
+        "typecheck": "tsc --noEmit && echo ✅ Type check passed",
+        "build": "npm run clean && npm run typecheck && cross-env NODE_ENV=production node esbuild.config.mjs",
+        "dev": "cross-env NODE_ENV=development WATCH=1 node esbuild.config.mjs",
+        "zip": "node scripts/zip.js",
+        "postinstall": "node scripts/postinstall.js"
+    },
+    "devDependencies": {
+        "@types/chrome": "0.1.12",
+        "cross-env": "10.0.0",
+        "cross-zip": "4.0.1",
+        "esbuild": "0.25.10",
+        "kleur": "4.1.5",
+        "rimraf": "6.0.1",
+        "typescript": "5.9.2"
+    }
+}

@@ -1,0 +1,89 @@
+{
+    "extName": {
+        "message": "ChatGPT 消息清理助手"
+    },
+    "extDescription": {
+        "message": "轻松清理旧消息，减少界面负担，提升性能，让 ChatGPT 更流畅。"
+    },
+    "title": {
+        "message": "消息清理助手"
+    },
+    "keepLabel": {
+        "message": "最多保留"
+    },
+    "modeLabel": {
+        "message": "模式"
+    },
+    "modeHide": {
+        "message": "隐藏（可随时恢复）"
+    },
+    "modeDelete": {
+        "message": "清除（不再显示）"
+    },
+    "notifyLabel": {
+        "message": "显示通知"
+    },
+    "apply": {
+        "message": "应用"
+    },
+    "tipHideMain": {
+        "message": "超出的消息会被隐藏"
+    },
+    "tipHideEffect": {
+        "message": "减少页面内容，可通过顶部按钮随时恢复"
+    },
+    "tipHideDetail": {
+        "message": "消息会从页面上暂时隐藏，但实际仍存在于网页 DOM 中。\n交互功能会被停用（如 inert、aria-hidden），并同步加上对应的样式（HIDDEN、INERT）。\n需要时，可在对话顶部点击“显示先前”完整恢复，无需重新加载或生成。\n这种方式只是隐藏显示和交互，消息本身及相关事件依然存在，仍会占用一定资源。"
+    },
+    "tipDeleteMain": {
+        "message": "超出的消息会直接从页面中清除"
+    },
+    "tipDeleteEffect": {
+        "message": "释放内存和系统资源，适合长时间、大量对话"
+    },
+    "tipDeleteDetail": {
+        "message": "消息会连同相关数据和事件绑定一起从网页 DOM 中彻底移除\n（通过 Element.remove() 实现）。\n被移除后将不再占用任何浏览器 DOM 资源。\n批量清理时会分段在空闲时间执行，避免页面出现明显卡顿。\n该模式只影响网页前端内容，不会动到服务器或账号数据。\n但如果对话本身过大，仍可能因为 ChatGPT 自身机制而出现卡顿。"
+    },
+    "tipReload": {
+        "message": "切换模式后建议刷新页面，以确保最佳效果"
+    },
+    "noteLabel": {
+        "message": "提示"
+    },
+    "showMoreBtn": {
+        "message": "显示先前"
+    },
+    "messagesLabel": {
+        "message": "消息"
+    },
+    "hiddenLabel": {
+        "message": "已隐藏"
+    },
+    "showMoreDone": {
+        "message": "所有消息已显示"
+    },
+    "toastAutoPrefix": {
+        "message": "自动:"
+    },
+    "toastManualPrefix": {
+        "message": "手动:"
+    },
+    "toastHidden": {
+        "message": "已隐藏"
+    },
+    "toastRestored": {
+        "message": "已恢复"
+    },
+    "toastDeleted": {
+        "message": "已删除"
+    },
+    "toastNoChanges": {
+        "message": "无变化"
+    },
+    "toastApplied": {
+        "message": "应用成功"
+    },
+    "toastApplyFailed": {
+        "message": "应用失败，请查看控制台"
+    }
+}
