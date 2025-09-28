@@ -1,12 +1,15 @@
 # ChatGPT Message Cleaner
 
+**🌐 Languages:** [English](./README.md) | [繁體中文](./docs/README_zh-TW.md)
+
 <!-- markdownlint-disable MD033 -->
+
 <p align="center">
   <img src="src/icons/chat-icon.svg" width="128" height="128" alt="icon" />
 </p>
 <!-- markdownlint-enable MD033 -->
 
-輕量化清理 ChatGPT 對話：保留最新訊息，隱藏或刪除較舊內容，降低頁面負擔。
+Lightweight ChatGPT conversation cleaner: Keep recent messages, hide or delete older content to reduce page load.
 
 ![version](https://img.shields.io/badge/version-1.0.0-2563EB)
 ![Manifest v3](https://img.shields.io/badge/Manifest-v3-334155)
@@ -15,102 +18,169 @@
 
 ---
 
-## 特色
+## Download
 
-- 模式選擇：
-  - 隱藏（Hide）：將較舊訊息從畫面移除但保留於 DOM，可隨時還原
-  - 刪除（Delete）：從 DOM 完整移除（`Element.remove()`），對超長對話特別有幫助
-- 負載保護：偵測長任務密度與平均耗時，忙碌時自動暫停
-- 空閒/批次：使用空閒時間處理，批次大小動態調整
-- 自動調速：依平均耗時自適應延遲
-- 顯示更多（Show previous）：需要時快速還原較舊內容
-- 多語言：en / zh-TW / zh-CN
+* **Chrome Web Store**: (Coming Soon)
+* **Microsoft Edge Add-ons**: (Coming Soon)
 
-> 備註：目前僅提供 GitHub 版本。上架 Chrome Web Store 後再補連結。
----
+## Features
 
-## 適用範圍與設計考量
+* **Cleaning Modes:**
+  * **Hide**: Remove older messages from view but keep in DOM, restorable anytime
+  * **Delete**: Completely remove from DOM (`Element.remove()`), especially helpful for extremely long conversations
+* **Load Protection**: Detects high task density and average processing time, automatically pauses when busy
+* **Idle Processing**: Uses idle time for processing with dynamic batch size adjustment
+* **Auto Speed Control**: Adaptive delays based on average processing time
+* **Show Previous**: Quickly restore older content when needed
+* **Multi-language**: en / zh-TW / zh-CN
 
-此工具著重於「前端視圖層的節流與整理」，藉由降低可見元素與 DOM 壓力來改善體感流暢度；同時尊重站點本身的運作機制。以下情境不直接涵蓋，改善幅度可能依站點設計而異：
+## Screenshot
 
-- 模型/網路的先天耗時
-- 站內全域狀態、虛擬清單、追蹤腳本等非 DOM 成本
-- 服務端對話長度、同步/快取或非 DOM 記憶體占用
-
-設計重點：
-
-- 隱藏（Hide）：節點仍在 DOM，但移除視覺與互動（`aria-hidden`、`inert`），可快速還原。
-- 刪除（Delete）：節點自 DOM 移除（`Element.remove()`），能釋放 DOM 記憶體；實際效果仍視站點整體行為而定。
-- 負載保護：偵測繁忙時暫停，恢復後再補一次。
-
-簡言之：本工具是「前端視圖層的整理員」，會盡量不與站內複雜機制對撞，也不碰你的帳號/雲端資料。若對話本身極大或站點當下負載很高，仍可能感到卡頓。
+<!-- markdownlint-disable MD033 -->
+<p align="center">
+  <img src="docs/demo.png" alt="ChatGPT Message Cleaner Demo" width="800" />
+</p>
+<!-- markdownlint-enable MD033 -->
 
 ---
 
-## 安裝（手動載入）
+## Scope & Design Considerations
 
-1. 取得程式碼並安裝依賴（推薦：Yarn v4 via Corepack；亦支援 npm/pnpm）
+This tool focuses on "frontend view layer throttling and organization" by reducing visible elements and DOM pressure to improve perceived smoothness, while respecting the site's own mechanisms. The following scenarios are not directly covered, and improvement may vary depending on site design:
 
-```bash
-git clone https://github.com/MeowXiaoXiang/ChatGPT-Cleaner.git
-cd ChatGPT-Cleaner
+* Model/network inherent latency
+* Global state, virtual lists, tracking scripts, and other non-DOM costs within the site
+* Server-side conversation length, sync/cache, or non-DOM memory usage
 
-# 推薦：使用 Corepack 啟用 Yarn v4（不強制）
-corepack enable
-corepack prepare yarn@stable --activate
-yarn install
+**Design Highlights:**
 
-# 或者使用 npm / pnpm
-# npm install
-# pnpm install
+* **Hide**: Nodes remain in DOM but visual and interaction are removed (`aria-hidden`, `inert`), can be quickly restored
+* **Delete**: Nodes are removed from DOM (`Element.remove()`), can free DOM memory; actual effect still depends on overall site behavior
+* **Load Protection**: Detects busy periods and pauses, resumes and retries after recovery
+
+In short: This tool is a "frontend view layer organizer" that tries not to conflict with complex internal site mechanisms and doesn't touch your account/cloud data. If the conversation itself is extremely large or the site is under heavy load, you may still experience lag.
+
+---
+
+## Installation (Manual Loading)
+
+1. Get the code and install dependencies (Recommended: Yarn v4 via Corepack; npm/pnpm also supported)
+
+    ```bash
+    git clone https://github.com/MeowXiaoXiang/ChatGPT-Cleaner.git
+    cd ChatGPT-Cleaner
+
+    # Recommended: Use Corepack to enable Yarn v4 (not mandatory)
+    corepack enable
+    corepack prepare yarn@stable --activate
+    yarn install
+
+    # Or use npm / pnpm / Yarn v1
+    # npm install
+    # pnpm install
+    ```
+
+2. Build (outputs to dist/)
+
+    ```bash
+    yarn build
+    # or npm run build / pnpm run build
+    ```
+
+3. Load in Chrome (Extensions → Developer mode → Load unpacked)
+
+    * Open chrome://extensions
+    * Enable "Developer mode"
+    * Click "Load unpacked", select the `dist/` folder
+
+> For development, use `yarn dev` to enter watch mode (automatically rebuilds and copies static resources to dist).
+
+---
+
+## Usage
+
+* **Toolbar Button**: Click to toggle enable/disable (badge shows ON/OFF)
+* **Floating Ball (bottom right)**: Click to open panel settings for Keep up to / Mode (Hide or Delete) / Notifications
+* **Hide Mode**: "Show previous" button appears at the top of conversations to restore older messages
+
+---
+
+## Project Structure
+
+```text
+│  .gitignore              # Git ignore rules
+│  esbuild.config.mjs      # Esbuild bundling configuration
+│  LICENSE                 # License (MIT)
+│  package.json            # Package and script definitions
+│  README.md               # Project documentation
+│  tsconfig.json           # TypeScript compilation settings
+│
+├─scripts                  # Helper scripts
+│      postinstall.js      # Post-install auto-execution (SDK registration)
+│      zip.js              # Package dist/ into zip
+│
+├─src
+│  │  manifest.json        # Chrome extension configuration (Manifest v3)
+│  │
+│  ├─background            # Background service
+│  │      background.ts
+│  │
+│  ├─content               # Frontend injection scripts
+│  │      debug.ts         # Debug panel with real-time metrics & charts
+│  │      dom-utils.ts     # DOM utilities (selectors, styling, marking)
+│  │      idle-utils.ts    # Idle callback wrapper for smooth processing
+│  │      main.ts          # Main entry point & orchestration logic
+│  │      observer.ts      # DOM mutation observer & route detection
+│  │      trim-engine.ts   # Core message hiding/deleting algorithms
+│  │      types.ts         # Shared TypeScript type definitions
+│  │      ui.ts            # UI components (floating ball, panel, toast)
+│  │
+│  ├─icons                 # Extension icons
+│  │      chat-icon-*.png / svg
+│  │
+│  ├─styles                # Injected styles
+│  │      content.css
+│  │
+│  └─_locales              # Multi-language (i18n)
+│      ├─en
+│      ├─zh_CN
+│      └─zh_TW
+│
+└─tools
+        convert-icons.py   # Tool for generating different sized icons
 ```
 
-1. 建置（產出 dist/）
+---
+
+## Permissions & Privacy
+
+* Manifest v3
+* permissions: `scripting`, `tabs`
+* host_permissions: `https://chat.openai.com/*`, `https://chatgpt.com/*`
+* Only operates on frontend DOM, does not collect or upload conversation content or personal data
+
+---
+
+## Development
 
 ```bash
-yarn build
-# 或 npm run build / pnpm run build
-```
-
-1. 於 Chrome 載入（擴充功能 → 開發人員模式 → 載入未封裝項目）
-
-- 開啟 chrome://extensions
-- 開啟「開發人員模式」
-- 點擊「載入未封裝項目」，選擇 `dist/` 資料夾
-
-> 開發模式可使用 `yarn dev` 進入 watch 模式（會自動重建並複製靜態資源到 dist）。
-
----
-
-## 使用方式
-
-- 工具列按鈕：點擊切換啟用/停用（徽章顯示 ON/OFF）。
-- 懸浮球（右下）：點擊開啟面板設定 Keep up to / Mode（Hide 或 Delete）/ Notifications。
-- 隱藏模式：對話頂部會出現「Show previous」以還原較舊訊息。
-
----
-
-## 權限與隱私
-
-- Manifest v3
-- permissions: `scripting`, `tabs`
-- host_permissions: `https://chat.openai.com/*`, `https://chatgpt.com/*`
-- 僅在前端操作 DOM，不蒐集或上傳對話內容與個資。
-
----
-
-## 開發
-
-```bash
-# 型別檢查
+# Type checking
 yarn typecheck
 
-# 開發模式（watch）
+# Development mode (watch)
 yarn dev
 
-# 產生發佈檔（dist/）
+# Generate release files (dist/)
 yarn build
 
-# 壓縮打包 dist 為 zip
+# Compress and package dist as zip
 yarn zip
 ```
+
+## Privacy Policy
+
+This extension respects your privacy and does not collect any personal data. For detailed information, please see the [Privacy Policy](./docs/PRIVACY.md).
+
+## License
+
+[MIT License](./LICENSE)

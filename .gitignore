@@ -18,6 +18,9 @@ node_modules/
 # ------------------------
 dist/
 
+# Release zip
+chatgpt-cleaner-*.zip
+
 # ------------------------
 # TypeScript build cache
 # ------------------------
