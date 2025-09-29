@@ -24,7 +24,7 @@ except ImportError:
     sys.exit(1)
 
 # 自己想要的尺寸自己加 OwO
-sizes = [16, 48, 128]
+sizes = [16, 48, 128, 300]
 svg_file = os.path.join(os.path.dirname(__file__), "chat-icon.svg")
 
 if not os.path.exists(svg_file):
