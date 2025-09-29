@@ -39,7 +39,7 @@
 
 <!-- markdownlint-disable MD033 -->
 <p align="center">
-  <img src="docs/demo.png" alt="ChatGPT 訊息清理小工具展示" width="800" />
+  <img src="../docs/demo.png" alt="ChatGPT 訊息清理小工具展示" width="800" />
 </p>
 <!-- markdownlint-enable MD033 -->
 
