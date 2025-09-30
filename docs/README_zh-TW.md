@@ -20,8 +20,8 @@
 
 ## 下載安裝
 
-* **Chrome 線上應用程式商店**: (待新增)
-* **Microsoft Edge 附加元件**: (待新增)
+* **Chrome 線上應用程式商店**: [前往安裝](https://chromewebstore.google.com/detail/dklkegnbfbgdafdbipiplcbijklpkklp)
+* **Microsoft Edge 附加元件**: [前往安裝](https://microsoftedge.microsoft.com/addons/detail/ifmghkemkdghcflndnpldoookcfhinaj)
 
 ## 特色
 

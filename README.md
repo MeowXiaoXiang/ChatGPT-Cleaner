@@ -20,8 +20,8 @@ Lightweight ChatGPT conversation cleaner: Keep recent messages, hide or delete o
 
 ## Download
 
-* **Chrome Web Store**: (Coming Soon)
-* **Microsoft Edge Add-ons**: (Coming Soon)
+* **Chrome Web Store**: [Install here](https://chromewebstore.google.com/detail/dklkegnbfbgdafdbipiplcbijklpkklp)
+* **Microsoft Edge Add-ons**: [Install here](https://microsoftedge.microsoft.com/addons/detail/ifmghkemkdghcflndnpldoookcfhinaj)
 
 ## Features
 
