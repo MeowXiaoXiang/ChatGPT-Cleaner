@@ -13,12 +13,13 @@
         "postinstall": "node scripts/postinstall.js"
     },
     "devDependencies": {
-        "@types/chrome": "0.1.12",
-        "cross-env": "10.0.0",
-        "cross-zip": "4.0.1",
-        "esbuild": "0.25.10",
+        "@types/archiver": "^7.0.0",
+        "@types/chrome": "0.1.32",
+        "archiver": "^7.0.1",
+        "cross-env": "10.1.0",
+        "esbuild": "0.27.2",
         "kleur": "4.1.5",
-        "rimraf": "6.0.1",
-        "typescript": "5.9.2"
+        "rimraf": "6.1.2",
+        "typescript": "5.9.3"
     }
 }

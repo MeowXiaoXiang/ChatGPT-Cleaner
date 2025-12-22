@@ -1,6 +1,6 @@
 // scripts/zip.js
-import { zip } from "cross-zip";
-import { promises as fs } from "fs";
+import archiver from "archiver";
+import { createWriteStream, promises as fs } from "fs";
 import path from "path";
 import url from "url";
 import { cyan, green, red, yellow, bold, gray } from "kleur/colors";
@@ -49,9 +49,18 @@ async function main() {
 		cyan(`[zip] creating ${bold(outName)} from ${bold("dist/")} ...`)
 	);
 
+	// 使用 archiver 壓縮 dist/ 內容（不包一層 dist 資料夾）
 	await new Promise((resolve, reject) => {
-		// 將 dist/ 的內容壓到 zip 根層（不包一層 dist 資料夾）
-		zip(dist, outPath, (err) => (err ? reject(err) : resolve()));
+		const output = createWriteStream(outPath);
+		const archive = archiver("zip", { zlib: { level: 9 } });
+
+		output.on("close", resolve);
+		archive.on("error", reject);
+
+		archive.pipe(output);
+		// 將 dist/ 內容直接壓到 zip 根層
+		archive.directory(dist, false);
+		archive.finalize();
 	});
 
 	console.log(green(`[zip] done -> ${bold(outPath)}`));

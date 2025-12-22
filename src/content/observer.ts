@@ -57,7 +57,7 @@ export function createObserverHandles(
 	let lastURL = location.href;
 
 	// Rebind 節流 (80ms)
-	let rebindTimer: ReturnType<typeof setTimeout> | null = null;
+	let rebindTimer: number | null = null;
 	function scheduleRebind() {
 		if (rebindTimer) return;
 		rebindTimer = window.setTimeout(() => {
