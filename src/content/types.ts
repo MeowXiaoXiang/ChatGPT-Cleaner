@@ -36,7 +36,7 @@ export interface Settings {
 	mode: Mode;
 	/** 是否啟用（對應 ccx_enabled） */
 	enabled: boolean;
-	/** 除錯開關（對應 ccx_debug） */
+	/** 除錯開關（對應 ccx_debug）- 僅控制 console 日誌 */
 	debug: boolean;
 }
 

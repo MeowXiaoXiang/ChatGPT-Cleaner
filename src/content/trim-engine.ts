@@ -37,17 +37,16 @@ import type {
 	Trimmer,
 	LogFn,
 } from "./types";
+import { BATCH } from "./constants";
 
 /* ----------------------------- */
-/* 批次刪除參數 (Batch Parameters) */
+/* 批次刪除參數 (從 constants.ts 導入) */
 /* ----------------------------- */
-
-// 批次刪除自適應參數
-const CHUNK_MIN = 10; // 最小批量
-const CHUNK_MAX = 200; // 最大批量
-const CHUNK_INIT = 50; // 初始批量
-const SLICE_UPPER_MS = 30; // 單批 >30ms → 減少批量
-const SLICE_LOWER_MS = 8; // 單批 <8ms  → 增加批量
+const CHUNK_MIN = BATCH.CHUNK_MIN;
+const CHUNK_MAX = BATCH.CHUNK_MAX;
+const CHUNK_INIT = BATCH.CHUNK_INIT;
+const SLICE_UPPER_MS = BATCH.SLICE_UPPER_MS;
+const SLICE_LOWER_MS = BATCH.SLICE_LOWER_MS;
 
 /* ------------------------------------------ */
 /* Basic Operations (delete / hide / restore) */
@@ -71,7 +70,7 @@ export function createDeleter(log: LogFn, stats: Stats) {
 
 		html.remove();
 		stats.domRemoved++;
-		log("🗑️ deleteMsg → DOM removed", sig);
+		log("deleteMsg -> DOM removed", sig);
 	};
 }
 
@@ -277,7 +276,7 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 		if (excess > 0) {
 			if (
 				modeRef() === "delete" &&
-				excess > getBulkDeleteThreshold() && // ✅ 改成這裡使用動態門檻
+				excess > getBulkDeleteThreshold() &&
 				!stormGate.suspended
 			) {
 				const victims = visible.slice(0, excess);
@@ -309,22 +308,16 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 			}
 		}
 
-		// hide 模式：若有空間，嘗試還原舊訊息
-		if (modeRef() === "hide") {
-			visible = getVisibleBySelector(ALL);
-			let deficit = Math.max(0, maxKeepRef() - visible.length);
-			if (deficit > 0) {
-				const hid = getHiddenBySelector(ALL);
-				for (
-					let i = hid.length - 1;
-					i >= 0 && deficit > 0;
-					i--, deficit--
-				) {
-					restoreMsg(hid[i], "hide");
-					restored++;
-				}
-			}
-		}
+		// ----------------------------------------------------------------
+		// hide 模式：只有在使用者明確請求時才還原
+		// 移除自動還原邏輯，避免滾動觸發 mutation 時意外還原
+		// ----------------------------------------------------------------
+		// 原始邏輯（已移除）：
+		// if (modeRef() === "hide") {
+		//     visible = getVisibleBySelector(ALL);
+		//     let deficit = Math.max(0, maxKeepRef() - visible.length);
+		//     if (deficit > 0) { ... restoreMsg ... }
+		// }
 
 		finalizeIfReady();
 		return { hidden, restored, deleted };
@@ -332,6 +325,7 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 
 	function showMoreMessages(): void {
 		if (modeRef() !== "hide") return;
+
 		const hid = getHiddenBySelector(ALL);
 		let toRestore = Math.min(maxKeepRef(), hid.length);
 

@@ -1,5 +1,5 @@
-// src/content/debug.ts
-// Chat Cleaner - Debug Panel
+// src/content/monitor.ts
+// Chat Cleaner - Performance Monitor Panel
 // ------------------------------------------------------------
 // 功能職責 (Responsibilities):
 //   - 提供即時監控面板：顯示 LongTask 與 Trim 的指標
@@ -7,7 +7,7 @@
 //   - 支援互動：拖曳、調整寬度、hover 提示、開關圖例
 //
 // 主要職能 (Key Functions):
-//   - mountDebug(api): 掛載並管理 Debug 面板
+//   - mountMonitor(api): 掛載並管理 Monitor 面板
 //   - showPanel / hidePanel / destroy
 //   - draw(): Canvas 雙 Y 軸繪圖（Trim Avg / LongTask Avg / LongTask Rate）
 //   - rebuildLegend(): 動態生成圖例，支援開關曲線
@@ -20,7 +20,7 @@
 //   - Chip 狀態顯示 Running / Suspend，連動 stormGate 狀態
 // ------------------------------------------------------------
 
-export type DebugApi = {
+export type MonitorApi = {
 	getMetrics: () => {
 		debounceDelay: number;
 		trimAvgMs: number;
@@ -42,7 +42,7 @@ export type DebugApi = {
 	forceTrimNow: () => void;
 };
 
-export type DebugController = {
+export type MonitorController = {
 	showPanel: () => void;
 	hidePanel: () => void;
 	destroy: () => void;
@@ -52,12 +52,16 @@ export type DebugController = {
 const REFRESH_MS = 1000;
 const MAX_POINTS = 240;
 
-// 調色盤：暗色主題 + 低彩度
+// 調色盤：半透明自適應主題（支援 light/dark 背景）
 const COLOR = {
-	bgGlass: "rgba(24,24,27,0.72)",
-	stroke: "rgba(250,250,250,0.12)",
-	text: "#fafafa",
-	sub: "#a1a1aa",
+	// 面板背景：半透明黑，毛玻璃效果自動融入背景
+	bgGlass: "rgba(17, 17, 20, 0.65)",
+	// 邊框：更明顯的半透明白，在深淺背景都可見
+	stroke: "rgba(255, 255, 255, 0.2)",
+	// 主文字：純白 + text-shadow 確保在淺背景可見
+	text: "#ffffff",
+	// 次要文字：淺灰
+	sub: "#d4d4d8",
 	ok: "#10b981",
 	warn: "#f59e0b",
 	susp: "#ef4444",
@@ -109,11 +113,11 @@ interface State {
 	dragOffY: number;
 }
 
-// ===== 主掛載函式：建立 Debug 面板 =====
-export function mountDebug(api: DebugApi): DebugController {
+// ===== 主掛載函式：建立 Monitor 面板 =====
+export function mountMonitor(api: MonitorApi): MonitorController {
 	// 若重複安裝，先卸載舊 DOM 與樣式
-	document.getElementById("ccx-debug")?.remove();
-	document.getElementById("ccx-debug-style")?.remove();
+	document.getElementById("ccx-monitor")?.remove();
+	document.getElementById("ccx-monitor-style")?.remove();
 
 	// 佇列
 	const qTrim = makeQueue(); // ms（左軸）
@@ -149,8 +153,8 @@ export function mountDebug(api: DebugApi): DebugController {
 
 	// 延遲注入 CSS（只有開面板時才加入）
 	const styleText = `
-	#ccx-debug{position:fixed;z-index:900;}
-	#ccx-debug .card{
+	#ccx-monitor{position:fixed;z-index:900;}
+	#ccx-monitor .card{
     position:relative;
 		width:var(--ccx-w, clamp(380px, 72vw, 520px));
 		min-width: 300px;
@@ -159,28 +163,31 @@ export function mountDebug(api: DebugApi): DebugController {
 		overflow-x:hidden; /* 避免水平滾動條 */
 		display:flex;flex-direction:column;gap:10px;
 		background:${COLOR.bgGlass};
-		backdrop-filter:saturate(1.2) blur(8px);
+		backdrop-filter:saturate(1.3) blur(12px);
 		border:1px solid ${COLOR.stroke};
 		border-radius:16px;padding:12px;
-		box-shadow:0 10px 30px rgba(0,0,0,0.35);color:${COLOR.text};
+		box-shadow:0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1) inset;
+		color:${COLOR.text};
 		scrollbar-gutter: stable both-edges;
+		/* 增強文字可讀性 */
+		text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 	}
 	
 	/* 右下角寬度調整把手（僅橫向） */
-	#ccx-debug .resize{position:absolute;right:6px;bottom:6px;width:14px;height:14px;border-right:2px solid #fff5;border-bottom:2px solid #fff5;cursor:ew-resize;opacity:.8}
+	#ccx-monitor .resize{position:absolute;right:6px;bottom:6px;width:14px;height:14px;border-right:2px solid #fff5;border-bottom:2px solid #fff5;cursor:ew-resize;opacity:.8}
 	/* 去除縮放把手與相關狀態，穩定小面板 */
-	#ccx-debug .card.resizing{user-select:none}
-	#ccx-debug .head{display:flex;align-items:center;gap:8px;cursor:move;user-select:none;}
-	#ccx-debug .title{font:600 13px/1.2 ui-sans-serif,system-ui;opacity:.95;}
-	#ccx-debug .grow{flex:1}
-	#ccx-debug .chip{font:600 11px/1 ui-sans-serif;padding:6px 10px;border-radius:999px;}
-	#ccx-debug .chip.run{background:${COLOR.ok}22;color:${COLOR.ok};border:1px solid ${COLOR.ok}55}
-	#ccx-debug .chip.susp{background:${COLOR.susp}22;color:${COLOR.susp};border:1px solid ${COLOR.susp}55}
-	#ccx-debug .btn{appearance:none;border:1px solid ${COLOR.stroke};background:transparent;color:${COLOR.text};border-radius:10px;padding:6px 8px;cursor:pointer}
-	#ccx-debug .btn:hover{border-color:#fff3}
+	#ccx-monitor .card.resizing{user-select:none}
+	#ccx-monitor .head{display:flex;align-items:center;gap:8px;cursor:move;user-select:none;}
+	#ccx-monitor .title{font:600 13px/1.2 ui-sans-serif,system-ui;opacity:.95;}
+	#ccx-monitor .grow{flex:1}
+	#ccx-monitor .chip{font:600 11px/1 ui-sans-serif;padding:6px 10px;border-radius:999px;}
+	#ccx-monitor .chip.run{background:${COLOR.ok}22;color:${COLOR.ok};border:1px solid ${COLOR.ok}55}
+	#ccx-monitor .chip.susp{background:${COLOR.susp}22;color:${COLOR.susp};border:1px solid ${COLOR.susp}55}
+	#ccx-monitor .btn{appearance:none;border:1px solid ${COLOR.stroke};background:transparent;color:${COLOR.text};border-radius:10px;padding:6px 8px;cursor:pointer}
+	#ccx-monitor .btn:hover{border-color:#fff3}
 
 	/* === KPI 小卡（放在 head 下、chart 上） === */
-		#ccx-debug .kpis-top{
+		#ccx-monitor .kpis-top{
 		display:grid; min-width:0;
 		grid-auto-flow: row dense;
 		/* 三張固定等寬，但允許在容器窄時縮小不溢出 */
@@ -188,33 +195,33 @@ export function mountDebug(api: DebugApi): DebugController {
 		gap:8px; margin:2px 0 2px;
 	}
 
-	#ccx-debug .kpi{
+	#ccx-monitor .kpi{
 		/* 取消 max-width 以便三張能共存於狹窄寬度；允許縮小 */
 		min-width:0; min-height:50px;
 		padding:8px 10px; border-radius:12px;
-		background:rgba(255,255,255,.04); border:1px solid rgba(250,250,250,.12);
+		background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18);
 		display:flex; flex-direction:column; justify-content:center; gap:4px;
 	}
-	#ccx-debug .kpi .label{font:600 11px ui-sans-serif;color:${COLOR.sub}; min-width:0}
-	#ccx-debug .kpi .value{font:700 15px/1.05 ui-sans-serif;white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-	#ccx-debug .kpi.ok .value{color:${COLOR.ok}}
-	#ccx-debug .kpi.warn .value{color:${COLOR.warn}}
-	#ccx-debug .kpi.bad .value{color:${COLOR.susp}}
+	#ccx-monitor .kpi .label{font:600 11px ui-sans-serif;color:${COLOR.sub}; min-width:0}
+	#ccx-monitor .kpi .value{font:700 15px/1.05 ui-sans-serif;white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+	#ccx-monitor .kpi.ok .value{color:${COLOR.ok}}
+	#ccx-monitor .kpi.warn .value{color:${COLOR.warn}}
+	#ccx-monitor .kpi.bad .value{color:${COLOR.susp}}
 
   /* 圖表區 */
-	#ccx-debug .chart-wrap{position:relative}
-	#ccx-debug canvas{
+	#ccx-monitor .chart-wrap{position:relative}
+	#ccx-monitor canvas{
 		width:100%;
 		height:190px; /* JS 會 RWD 調整 */
 		border-radius:12px;
-		background:rgba(255,255,255,0.03);
-		border:1px solid ${COLOR.stroke}
+		background:rgba(255,255,255,0.06);
+		border:1px solid rgba(255,255,255,0.15)
 	}
-	#ccx-debug .legend{position:absolute;right:10px;top:10px;display:flex;gap:8px;flex-wrap:wrap}
-	#ccx-debug .legend .item{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:rgba(0,0,0,.2);border:1px solid ${COLOR.stroke};font:600 11px ui-sans-serif;cursor:pointer;opacity:.9}
-	#ccx-debug .legend .swatch{width:10px;height:10px;border-radius:3px}
-	#ccx-debug .legend .off{opacity:.38;filter:grayscale(0.8)}
-	#ccx-debug .tooltip{position:absolute;pointer-events:none;min-width:190px;max-width:min(60vw, 320px);padding:8px 10px;border-radius:12px;background:rgba(17,17,20,.72);backdrop-filter:blur(6px) saturate(1.1);border:1px solid ${COLOR.stroke};font:12px ui-sans-serif;color:${COLOR.text}}
+	#ccx-monitor .legend{position:absolute;right:10px;top:10px;display:flex;gap:8px;flex-wrap:wrap}
+	#ccx-monitor .legend .item{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,0.2);font:600 11px ui-sans-serif;cursor:pointer;opacity:.95}
+	#ccx-monitor .legend .swatch{width:10px;height:10px;border-radius:3px}
+	#ccx-monitor .legend .off{opacity:.38;filter:grayscale(0.8)}
+	#ccx-monitor .tooltip{position:absolute;pointer-events:none;min-width:190px;max-width:min(60vw, 335px);padding:8px 10px;border-radius:12px;background:rgba(17,17,20,.85);backdrop-filter:blur(8px) saturate(1.2);border:1px solid rgba(255,255,255,0.25);font:12px ui-sans-serif;color:${COLOR.text}}
 
 	/* === 底部外層：兩大分區（Gate / Settings） === */
 	#ccx-stats-wrap{
@@ -224,41 +231,41 @@ export function mountDebug(api: DebugApi): DebugController {
 	}
 
 	/* 內層：每區的 key-value 小卡清單 */
-	#ccx-debug .sec{min-width:0; display:flex; flex-direction:column; gap:8px}
-	#ccx-debug .sec .sec-title{font:700 12px/1 ui-sans-serif;color:${COLOR.sub};margin-top:2px}
-	#ccx-debug .kvgrid{
+	#ccx-monitor .sec{min-width:0; display:flex; flex-direction:column; gap:8px}
+	#ccx-monitor .sec .sec-title{font:700 12px/1 ui-sans-serif;color:${COLOR.sub};margin-top:2px}
+	#ccx-monitor .kvgrid{
 		display:grid; grid-auto-flow: row dense; min-width:0; gap:8px;
 			/* 降低最小寬，提升容納度，避免重疊與外溢 */
 			grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 	}
-		@media (max-width: 719px){ #ccx-debug .kvgrid{ grid-template-columns: repeat(2, minmax(120px,1fr)); } }
-	@media (max-width: 380px){ #ccx-debug .kvgrid{ grid-template-columns: 1fr; } }
+		@media (max-width: 719px){ #ccx-monitor .kvgrid{ grid-template-columns: repeat(2, minmax(120px,1fr)); } }
+	@media (max-width: 380px){ #ccx-monitor .kvgrid{ grid-template-columns: 1fr; } }
 
-	#ccx-debug .stat{
+	#ccx-monitor .stat{
 		min-width:0; display:flex; justify-content:space-between; align-items:center;
 		padding:8px 10px; border-radius:10px;
-		background:rgba(255,255,255,.03); border:1px solid ${COLOR.stroke};
+		background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,0.15);
 		font:12px ui-sans-serif; color:${COLOR.sub}
 	}
-	#ccx-debug .stat span{min-width:0; overflow:hidden; text-overflow:ellipsis; overflow-wrap:anywhere}
-	#ccx-debug .stat b{font:600 12px ui-sans-serif; color:${COLOR.text}; white-space:nowrap; font-variant-numeric: tabular-nums}
+	#ccx-monitor .stat span{min-width:0; overflow:hidden; text-overflow:ellipsis; overflow-wrap:anywhere}
+	#ccx-monitor .stat b{font:600 12px ui-sans-serif; color:${COLOR.text}; white-space:nowrap; font-variant-numeric: tabular-nums}
 
 	/* Compact：矮視窗或直立 → 更緊湊 */
-	#ccx-debug .card.compact { gap:10px; }
-	#ccx-debug .card.compact canvas{ height:128px; }
-	#ccx-debug .card.compact .stat { padding:7px 8px; font-size:11px; }
-	#ccx-debug .card.compact .sec .sec-title { font-size:11px; }
+	#ccx-monitor .card.compact { gap:10px; }
+	#ccx-monitor .card.compact canvas{ height:128px; }
+	#ccx-monitor .card.compact .stat { padding:7px 8px; font-size:11px; }
+	#ccx-monitor .card.compact .sec .sec-title { font-size:11px; }
 
 	/* 進一步因應極矮視窗（<=600px 高） */
 	@media (max-height: 600px){
-		#ccx-debug .card { gap:10px; }
-		#ccx-debug canvas{ height:120px; }
+		#ccx-monitor .card { gap:10px; }
+		#ccx-monitor canvas{ height:120px; }
 	}`;
 
 	function injectStyle() {
 		if (styleEl) return;
 		styleEl = document.createElement("style");
-		styleEl.id = "ccx-debug-style";
+		styleEl.id = "ccx-monitor-style";
 		styleEl.textContent = styleText;
 		document.head.appendChild(styleEl);
 	}
@@ -271,11 +278,11 @@ export function mountDebug(api: DebugApi): DebugController {
 
 	// ---- DOM ----
 	root = document.createElement("div");
-	root.id = "ccx-debug";
+	root.id = "ccx-monitor";
 	root.innerHTML = `
-    <div class="card" role="dialog" aria-label="Debug Panel">
+    <div class="card" role="dialog" aria-label="Monitor Panel">
 		<div class="head" id="ccx-drag-handle">
-			<div class="title">Chat Cleaner • Debug</div>
+			<div class="title">Chat Cleaner • Monitor</div>
 			<div class="grow"></div>
 			<span class="chip run" id="ccx-chip">✨ Running</span>
 			<button class="btn" id="ccx-close" aria-label="Close">✕</button>
@@ -643,57 +650,80 @@ export function mountDebug(api: DebugApi): DebugController {
 		const colorLtRateClass = (v: number) =>
 			v < th.exitRate ? "ok" : v < th.enterRate ? "warn" : "bad";
 
-		// ── KPI 小卡（圖表上方）──
+		// ── KPI 小卡（圖表上方）── 只更新值，不重建 DOM
 		const kpisTop = kpisTopEl();
-		kpisTop.innerHTML = `
-		<div class="kpi ${colorTrimClass(trimAvg)}">
-			<div class="label">Trim Avg</div>
-			<div class="value">${trimAvg.toFixed(1)} ms</div>
-		</div>
-		<div class="kpi ${colorLtAvgClass(ltAvg)}">
-			<div class="label">LongTask Avg</div>
-			<div class="value">${ltAvg.toFixed(1)} ms</div>
-		</div>
-		<div class="kpi ${colorLtRateClass(ltRate)}">
-			<div class="label">LongTask Rate</div>
-			<div class="value">${ltRate.toFixed(2)} /s</div>
-		</div>`;
-
-		// ====== Gate 門檻 ======
-		const gateHtml = `
-		<div class="sec" aria-labelledby="sec-gate">
-			<div class="sec-title" id="sec-gate">Storm Gate Thresholds</div>
-			<div class="kvgrid">
-				<div class="stat"><span>Enter Rate</span><b>${th.enterRate.toFixed(
-					2
-				)} /s</b></div>
-				<div class="stat"><span>Exit Rate</span><b>${th.exitRate.toFixed(
-					2
-				)} /s</b></div>
-				<div class="stat"><span>Enter Avg</span><b>${th.enterAvg.toFixed(
-					1
-				)} ms</b></div>
-				<div class="stat"><span>Exit Avg</span><b>${th.exitAvg.toFixed(1)} ms</b></div>
-				<div class="stat"><span>Min Suspend</span><b>${th.minSuspendMs} ms</b></div>
-				<div class="stat"><span>Debounce Delay</span><b>${m.debounceDelay} ms</b></div>
+		if (!kpisTop.hasChildNodes()) {
+			// 首次建立結構
+			kpisTop.innerHTML = `
+			<div class="kpi" data-kpi="trim">
+				<div class="label">Trim Avg</div>
+				<div class="value"></div>
 			</div>
-		</div>`;
-
-		// ====== 設定 / 累積 ======
-		const settingsHtml = `
-		<div class="sec" aria-labelledby="sec-settings">
-			<div class="sec-title" id="sec-settings">Settings &amp; Stats</div>
-			<div class="kvgrid">
-				<div class="stat"><span>Mode</span><b>${String(m.mode).toUpperCase()}</b></div>
-				<div class="stat"><span>Max Keep</span><b>${m.maxKeep}</b></div>
-				<div class="stat"><span>Removed (DOM)</span><b>${
-					m.stats?.domRemoved ?? 0
-				}</b></div>
+			<div class="kpi" data-kpi="ltAvg">
+				<div class="label">LongTask Avg</div>
+				<div class="value"></div>
 			</div>
-		</div>`;
+			<div class="kpi" data-kpi="ltRate">
+				<div class="label">LongTask Rate</div>
+				<div class="value"></div>
+			</div>`;
+		}
+		// 更新值和樣式
+		const kpiTrim = kpisTop.querySelector('[data-kpi="trim"]') as HTMLDivElement;
+		const kpiLtAvg = kpisTop.querySelector('[data-kpi="ltAvg"]') as HTMLDivElement;
+		const kpiLtRate = kpisTop.querySelector('[data-kpi="ltRate"]') as HTMLDivElement;
+		if (kpiTrim) {
+			kpiTrim.className = `kpi ${colorTrimClass(trimAvg)}`;
+			kpiTrim.querySelector('.value')!.textContent = `${trimAvg.toFixed(1)} ms`;
+		}
+		if (kpiLtAvg) {
+			kpiLtAvg.className = `kpi ${colorLtAvgClass(ltAvg)}`;
+			kpiLtAvg.querySelector('.value')!.textContent = `${ltAvg.toFixed(1)} ms`;
+		}
+		if (kpiLtRate) {
+			kpiLtRate.className = `kpi ${colorLtRateClass(ltRate)}`;
+			kpiLtRate.querySelector('.value')!.textContent = `${ltRate.toFixed(2)} /s`;
+		}
 
-		// 寫入面板（外層 2 欄容器）
-		statsWrapEl().innerHTML = gateHtml + settingsHtml;
+		// ====== Gate 門檻 & Settings ====== 只更新值，不重建 DOM
+		const statsWrap = statsWrapEl();
+		if (!statsWrap.hasChildNodes()) {
+			// 首次建立結構
+			statsWrap.innerHTML = `
+			<div class="sec" aria-labelledby="sec-gate">
+				<div class="sec-title" id="sec-gate">Storm Gate Thresholds</div>
+				<div class="kvgrid">
+					<div class="stat"><span>Enter Rate</span><b data-val="enterRate"></b></div>
+					<div class="stat"><span>Exit Rate</span><b data-val="exitRate"></b></div>
+					<div class="stat"><span>Enter Avg</span><b data-val="enterAvg"></b></div>
+					<div class="stat"><span>Exit Avg</span><b data-val="exitAvg"></b></div>
+					<div class="stat"><span>Min Suspend</span><b data-val="minSuspend"></b></div>
+					<div class="stat"><span>Debounce Delay</span><b data-val="debounce"></b></div>
+				</div>
+			</div>
+			<div class="sec" aria-labelledby="sec-settings">
+				<div class="sec-title" id="sec-settings">Settings &amp; Stats</div>
+				<div class="kvgrid">
+					<div class="stat"><span>Mode</span><b data-val="mode"></b></div>
+					<div class="stat"><span>Max Keep</span><b data-val="maxKeep"></b></div>
+					<div class="stat"><span>Removed (DOM)</span><b data-val="removed"></b></div>
+				</div>
+			</div>`;
+		}
+		// 更新值（無需重建 DOM）
+		const setValue = (key: string, val: string | number) => {
+			const el = statsWrap.querySelector(`[data-val="${key}"]`);
+			if (el) el.textContent = String(val);
+		};
+		setValue('enterRate', `${th.enterRate.toFixed(2)} /s`);
+		setValue('exitRate', `${th.exitRate.toFixed(2)} /s`);
+		setValue('enterAvg', `${th.enterAvg.toFixed(1)} ms`);
+		setValue('exitAvg', `${th.exitAvg.toFixed(1)} ms`);
+		setValue('minSuspend', `${th.minSuspendMs} ms`);
+		setValue('debounce', `${m.debounceDelay} ms`);
+		setValue('mode', String(m.mode).toUpperCase());
+		setValue('maxKeep', m.maxKeep);
+		setValue('removed', m.stats?.domRemoved ?? 0);
 
 		const xs = qTrim.values().map((_, i) => i);
 		draw(
@@ -862,6 +892,11 @@ export function mountDebug(api: DebugApi): DebugController {
 			hoverRaf = null;
 		}
 
+		// 清空佇列防止記憶體殘留
+		qTrim.clear();
+		qLtAvg.clear();
+		qLtRate.clear();
+
 		root = null;
 		canvas = null;
 		legend = null;
@@ -869,8 +904,8 @@ export function mountDebug(api: DebugApi): DebugController {
 		bgBuffer = null;
 		styleEl = null;
 
-		delete (window as any).__ccxDebug;
-		delete (globalThis as any).__ccxDebug;
+		delete (window as any).__ccxMonitor;
+		delete (globalThis as any).__ccxMonitor;
 	}
 
 	function onWindowResize() {
@@ -985,7 +1020,7 @@ export function mountDebug(api: DebugApi): DebugController {
 			const onMove = (e: MouseEvent) => {
 				const w = startW + (e.clientX - startX);
 				const maxW = Math.floor(window.innerWidth * 0.9);
-				const newW = Math.max(320, Math.min(w, maxW));
+				const newW = Math.max(335, Math.min(w, maxW));
 				cardEl().style.setProperty("--ccx-w", newW + "px");
 				layout();
 				bgBufferDirty = true;
@@ -1008,15 +1043,16 @@ export function mountDebug(api: DebugApi): DebugController {
 		});
 	}
 
-	// 對外 API：DebugController + 全域 __ccxDebug
-	const controller: DebugController = { showPanel, hidePanel, destroy };
-	(window as any).__ccxDebug = {
+	// 對外 API：MonitorController + 全域 __ccxMonitor
+	const controller: MonitorController = { showPanel, hidePanel, destroy };
+	(window as any).__ccxMonitor = {
 		showPanel,
 		hidePanel,
 		getMetrics: api.getMetrics,
 		forceTrim: api.forceTrim,
 		forceTrimNow: api.forceTrimNow,
 	};
-	(globalThis as any).__ccxDebug = (window as any).__ccxDebug;
+	(globalThis as any).__ccxMonitor = (window as any).__ccxMonitor;
 	return controller;
 }
+

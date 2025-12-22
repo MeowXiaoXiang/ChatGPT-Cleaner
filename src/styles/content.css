@@ -70,7 +70,7 @@
 }
 
 .ccx-close,
-.ccx-debug {
+.ccx-monitor {
 	background: transparent;
 	border: 1px solid transparent; /* 先保留邊框，避免跳動 */
 	border-radius: 6px;
@@ -86,7 +86,7 @@
 }
 
 .ccx-close:hover,
-.ccx-debug:hover {
+.ccx-monitor:hover {
 	color: light-dark(#333333, #ddd);
 	border-color: light-dark(#aaa, #555); /* hover 時顯示出邊框 */
 	background: light-dark(#f0f0f0, #444); /* 淺背景／深背景 */
@@ -321,4 +321,63 @@ html[style*="color-scheme: dark"] .ccx-body select option {
 /* 讓兩顆按鈕之間有間距 */
 .ccx-btn + .ccx-btn {
 	margin-left: 0.5rem;
+}
+
+/* ------------------------------------------------------------
+    Show More 按鈕 — 融入 GPT 風格但可辨識為插件
+   ------------------------------------------------------------ */
+.ccx-showmore-wrap {
+	text-align: center;
+	margin: 12px 0;
+}
+
+.ccx-showmore-wrap button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 16px;
+	border-radius: 9999px; /* pill shape, GPT 風格 */
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.4;
+	cursor: pointer;
+	user-select: none;
+	transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+
+	/* Light mode: 淡綠底 + 深綠字（接近 GPT 但稍淺） */
+	background: #e8f5e9;
+	color: #2e7d32;
+	border: 1px solid #a5d6a7;
+}
+
+.ccx-showmore-wrap button:hover {
+	background: #c8e6c9;
+	border-color: #81c784;
+	box-shadow: 0 2px 8px rgba(46, 125, 50, 0.15);
+}
+
+.ccx-showmore-wrap button:active {
+	background: #a5d6a7;
+}
+
+/* Dark mode */
+html.dark .ccx-showmore-wrap button,
+html[style*="color-scheme: dark"] .ccx-showmore-wrap button {
+	background: rgba(76, 175, 80, 0.15);
+	color: #81c784;
+	border-color: rgba(129, 199, 132, 0.4);
+}
+
+html.dark .ccx-showmore-wrap button:hover,
+html[style*="color-scheme: dark"] .ccx-showmore-wrap button:hover {
+	background: rgba(76, 175, 80, 0.25);
+	border-color: rgba(129, 199, 132, 0.6);
+	box-shadow: 0 2px 12px rgba(76, 175, 80, 0.2);
+}
+
+/* 減少動畫偏好 */
+@media (prefers-reduced-motion: reduce) {
+	.ccx-showmore-wrap button {
+		transition: none;
+	}
 }

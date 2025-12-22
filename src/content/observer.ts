@@ -16,15 +16,10 @@
 // ------------------------------------------------------------
 
 import type { CreateObserverDeps, ObserverHandles } from "./types";
+import { UI_SELECTORS } from "./constants";
 
-// 需忽略的內部 UI 節點（避免自觸發）
-const INTERNAL_UI_IGNORE_SELECTOR = [
-	".ccx-ui",
-	".ccx-toast-container",
-	".ccx-showmore-wrap",
-	"#ccx-debug",
-	"#ccx-debug *",
-].join(",");
+// 需忽略的內部 UI 節點（從 constants.ts 導入）
+const INTERNAL_UI_IGNORE_SELECTOR = UI_SELECTORS.INTERNAL.join(",");
 
 // 判斷節點是否屬於本插件 UI
 function isInternalUI(node: Node | null | undefined): boolean {

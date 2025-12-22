@@ -11,7 +11,7 @@
 
 Lightweight ChatGPT conversation cleaner: Keep recent messages, hide or delete older content to reduce page load.
 
-![version](https://img.shields.io/badge/version-1.0.0-2563EB)
+![version](https://img.shields.io/badge/version-1.1.0-2563EB)
 ![Manifest v3](https://img.shields.io/badge/Manifest-v3-334155)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)
 ![License](https://img.shields.io/badge/License-MIT-10B981)
@@ -126,10 +126,11 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 │  │      background.ts
 │  │
 │  ├─content               # Frontend injection scripts
-│  │      debug.ts         # Debug panel with real-time metrics & charts
+│  │      constants.ts     # Centralized tunable parameters
 │  │      dom-utils.ts     # DOM utilities (selectors, styling, marking)
 │  │      idle-utils.ts    # Idle callback wrapper for smooth processing
 │  │      main.ts          # Main entry point & orchestration logic
+│  │      monitor.ts       # Performance monitor panel with real-time metrics & charts
 │  │      observer.ts      # DOM mutation observer & route detection
 │  │      trim-engine.ts   # Core message hiding/deleting algorithms
 │  │      types.ts         # Shared TypeScript type definitions

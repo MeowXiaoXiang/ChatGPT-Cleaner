@@ -13,6 +13,7 @@
 //   - mountShowMore：插入「顯示更多」按鈕
 //
 // 設計要點 (Design Notes):
+import { TOAST, SHOW_MORE } from "./constants";
 //   - Toast：最多顯示 4 條，重複訊息會累加數字與次數
 //   - Tooltip：僅生成一次，避免重複插入
 //   - UI 掛載有 guard（MutationObserver），防止被 DOM 移除
@@ -70,13 +71,10 @@ export function createToast(T: I18nFn) {
 		type: ToastKind;
 	};
 
-	// 關鍵設定：最多同時保留幾條 toast（太多會擠爆畫面）
-	const MAX_VISIBLE = 4;
-	// 每條 toast 顯示多久（毫秒）
-	const LIFETIME = 1600;
-	// 關閉 transition 的保底移除時間（避免 transitionend 錯失）
-	// 800–1000ms 比 400ms 更能涵蓋背景 throttling 或瞬時卡頓，避免動畫被硬切
-	const FALLBACK_REMOVE_MS = 900;
+	// 關鍵設定（從 constants.ts 導入）
+	const MAX_VISIBLE = TOAST.MAX_VISIBLE;
+	const LIFETIME = TOAST.LIFETIME_MS;
+	const FALLBACK_REMOVE_MS = TOAST.FALLBACK_REMOVE_MS;
 
 	// key → 累加記錄；key 為「type + 文字(數字標準化)」
 	const toastMap = new Map<string, Rec>();
@@ -261,10 +259,8 @@ export function mountUI(opts: {
 	T: I18nFn;
 	initial: { maxKeep: number; mode: Mode; notify: boolean };
 	onApply: (next: ApplyPayload) => void;
-	/** 僅在 debug 模式顯示 DEBUG 按鈕 */
-	debug?: boolean;
-	/** 點 debug 按鈕時呼叫（由 main.ts 傳遞 showPanel） */
-	onDebug?: () => void;
+	/** 點擊 Monitor 按鈕時呼叫（由 main.ts 傳遞 showPanel） */
+	onMonitor?: () => void;
 }) {
 	const { T, initial, onApply } = opts;
 
@@ -394,31 +390,31 @@ export function mountUI(opts: {
 	const closeBtn = root.querySelector(".ccx-close") as HTMLButtonElement;
 	const applyBtn = root.querySelector("#ccx-apply") as HTMLButtonElement;
 
-	// === DEBUG 按鈕（僅在 debug 模式顯示；只負責「打開面板」）===
-	let debugBtn: HTMLButtonElement | null = null;
+	// === MONITOR 按鈕（永遠顯示；打開效能監控面板）===
+	let monitorBtn: HTMLButtonElement | null = null;
 	const actionsEl = root.querySelector(
 		".ccx-actions"
 	) as HTMLDivElement | null;
 
-	if (opts.debug && actionsEl) {
-		debugBtn = document.createElement("button");
-		debugBtn.setAttribute("type", "button");
-		debugBtn.setAttribute("aria-label", "Open Debug Panel");
-		debugBtn.className = "ccx-debug";
-		debugBtn.textContent = "📊";
+	if (actionsEl) {
+		monitorBtn = document.createElement("button");
+		monitorBtn.setAttribute("type", "button");
+		monitorBtn.setAttribute("aria-label", "Open Performance Monitor");
+		monitorBtn.className = "ccx-monitor";
+		monitorBtn.textContent = "📊";
 
-		debugBtn.onclick = () => {
+		monitorBtn.onclick = () => {
 			try {
-				opts.onDebug?.();
+				opts.onMonitor?.();
 			} catch {}
 		};
 
 		// 插在 ✖ 的左邊
 		const closeBtn = actionsEl.querySelector(".ccx-close");
 		if (closeBtn) {
-			actionsEl.insertBefore(debugBtn, closeBtn);
+			actionsEl.insertBefore(monitorBtn, closeBtn);
 		} else {
-			actionsEl.appendChild(debugBtn);
+			actionsEl.appendChild(monitorBtn);
 		}
 	}
 
@@ -678,10 +674,16 @@ export function mountShowMore(opts: {
 	const { T, selectorAll, trimmer, modeRef, maxKeepRef } = opts;
 	let wrapper: HTMLDivElement | null = null;
 	let prevHiddenCount = -1;
+	
+	// 節流控制：避免頻繁更新 DOM
+	let updateTimer: ReturnType<typeof setTimeout> | null = null;
+	// 節流控制（從 constants.ts 導入）
+	const UPDATE_THROTTLE_MS = SHOW_MORE.UPDATE_THROTTLE_MS;
 
 	function removeIfAny() {
 		wrapper?.remove();
 		wrapper = null;
+		prevHiddenCount = -1;
 	}
 
 	function insert() {
@@ -689,14 +691,17 @@ export function mountShowMore(opts: {
 		if (modeRef() !== "hide") return removeIfAny();
 
 		const hidden = getHiddenBySelector(selectorAll);
+		
+		// 無隱藏訊息時移除按鈕
+		if (!hidden.length) return removeIfAny();
+		
 		// hidden 數量未變更且已有 wrapper → 直接早退
 		if (wrapper && hidden.length === prevHiddenCount) return;
 		prevHiddenCount = hidden.length;
 
-		if (!hidden.length) return removeIfAny();
-
 		// 先清掉舊的
 		removeIfAny();
+		prevHiddenCount = hidden.length;
 
 		wrapper = document.createElement("div");
 		wrapper.className = CLS.SHOW_MORE_WRAP;
@@ -705,7 +710,8 @@ export function mountShowMore(opts: {
 
 		const btn = document.createElement("button");
 		const toShowNow = Math.min(maxKeepRef(), hidden.length);
-		btn.textContent = `${T(
+		// 使用向上箭頭符號，表示「展開更多」
+		btn.textContent = `\u25B2 ${T(
 			"showMoreBtn",
 			"Show previous"
 		)} ${toShowNow} ${T("messagesLabel", "messages")} (${hidden.length} ${T(
@@ -714,7 +720,12 @@ export function mountShowMore(opts: {
 		)})`;
 		btn.onclick = () => {
 			trimmer.showMoreMessages();
-			update(); // 還原後即時更新狀態
+			// 使用節流的 update，避免閃爍
+			if (updateTimer) clearTimeout(updateTimer);
+			updateTimer = setTimeout(() => {
+				updateTimer = null;
+				update();
+			}, 50);
 		};
 		wrapper.appendChild(btn);
 
@@ -731,12 +742,31 @@ export function mountShowMore(opts: {
 	}
 
 	function update() {
+		// 節流：避免短時間內多次更新
+		if (updateTimer) return;
+		
+		updateTimer = setTimeout(() => {
+			updateTimer = null;
+			insert();
+		}, UPDATE_THROTTLE_MS);
+	}
+	
+	// 立即更新（跳過節流）
+	function forceUpdate() {
+		if (updateTimer) {
+			clearTimeout(updateTimer);
+			updateTimer = null;
+		}
 		insert();
 	}
 
 	function destroy() {
+		if (updateTimer) {
+			clearTimeout(updateTimer);
+			updateTimer = null;
+		}
 		removeIfAny();
 	}
 
-	return { update, destroy };
+	return { update, forceUpdate, destroy };
 }

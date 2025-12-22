@@ -1,6 +1,6 @@
 {
     "name": "chatgpt-cleaner",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "ChatGPT 訊息清理小工具",
     "type": "module",
     "private": true,

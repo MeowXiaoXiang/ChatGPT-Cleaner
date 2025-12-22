@@ -28,8 +28,19 @@ import {
 } from "./trim-engine";
 import { requestIdle, cancelIdle, IdleHandle } from "./idle-utils";
 import type { DebounceState, Mode, Selectors, Settings, Stats } from "./types";
-import { mountDebug } from "./debug";
-import type { DebugController, DebugApi } from "./debug";
+import { mountMonitor } from "./monitor";
+import type { MonitorController, MonitorApi } from "./monitor";
+import {
+	DEFAULT_MAX_KEEP,
+	DEFAULT_MODE,
+	DEBOUNCE,
+	TRIM_THRESHOLD,
+	LONG_TASK,
+	MIN_TRIM_INTERVAL_MS,
+	WAKE,
+	SELECTORS as SEL,
+	SELECTOR_ALL,
+} from "./constants";
 
 // ---- 全域計時器綁定 ----
 const setT = globalThis.setTimeout.bind(globalThis);
@@ -62,36 +73,33 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	const T = createI18n();
 
 	const SELECTORS: Selectors = {
-		LIST: '[data-testid^="conversation-turn-"]',
-		ALL: [
-			'[data-testid^="conversation-turn-"]',
-			'article[role="listitem"][data-turn]',
-		].join(","),
+		LIST: SEL.PRIMARY,
+		ALL: SELECTOR_ALL,
 	};
 
 	// ---- settings / state ----
 	const state: Settings = {
 		maxKeep: Math.max(
 			1,
-			parseInt(localStorage.getItem("ccx_max_keep") || "30", 10)
+			parseInt(localStorage.getItem("ccx_max_keep") || String(DEFAULT_MAX_KEEP), 10)
 		),
 		notify: localStorage.getItem("ccx_notify") !== "0",
-		mode: (localStorage.getItem("ccx_mode") as Mode) || "hide",
+		mode: (localStorage.getItem("ccx_mode") as Mode) || DEFAULT_MODE,
 		enabled: true,
 		debug: DEBUG,
 	};
 	const stats: Stats = { domRemoved: 0 };
 
-	// ---- 調速參數（只看修剪平均耗時）----
-	const TRIM_SLOW_MS = 12; // threshold: consider trim slow if avg > 12ms
-	const STEP_UP_MS = 40; // threshold: consider step up if avg > 40ms
-	const STEP_DOWN_MS = 20; // threshold: consider step down if avg < 20ms
+	// ---- 調速參數（從 constants.ts 導入）----
+	const TRIM_SLOW_MS = TRIM_THRESHOLD.SLOW_MS;
+	const STEP_UP_MS = TRIM_THRESHOLD.STEP_UP_MS;
+	const STEP_DOWN_MS = TRIM_THRESHOLD.STEP_DOWN_MS;
 
 	const debounce: DebounceState = {
-		delay: 200,
-		min: 100,
-		max: 800,
-		emaAlpha: 0.2,
+		delay: DEBOUNCE.DELAY_INIT,
+		min: DEBOUNCE.DELAY_MIN,
+		max: DEBOUNCE.DELAY_MAX,
+		emaAlpha: DEBOUNCE.EMA_ALPHA,
 		trimAvgMs: 0,
 	};
 
@@ -101,19 +109,17 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 
 	const styleTag = injectRuntimeStyle();
 
-	// Long Task Gate（唯一的暫停/恢復依據）
-	// - 每秒結算一次長任務的「次數/秒」與「平均耗時」，維持 EMA；
-	// - 進入/退出使用雙閾值（hysteresis）與最小暫停時間（cooldown）。
-	const BUCKET_MS = 1000; // 心跳頻率
-	const LT_ALPHA_RATE = 0.35; // rate EMA 平滑
-	const LT_ALPHA_DUR = 0.2; // avg duration EMA 平滑
-	const LT_DECAY = 0.6; // 無 long task 時的衰減係數
+	// Long Task Gate（從 constants.ts 導入）
+	const BUCKET_MS = LONG_TASK.BUCKET_MS;
+	const LT_ALPHA_RATE = LONG_TASK.ALPHA_RATE;
+	const LT_ALPHA_DUR = LONG_TASK.ALPHA_DUR;
+	const LT_DECAY = LONG_TASK.DECAY;
 
-	const LT_ENTER_RATE = 0.8; // 進入暫停：rateEMA >= 0.8 /s
-	const LT_EXIT_RATE = 0.3; // 恢復繼續：rateEMA < 0.3 /s
-	const LT_ENTER_AVG = 50; // 進入暫停：avgDurEMA >= 50 ms
-	const LT_EXIT_AVG = 20; // 恢復繼續：avgDurEMA < 20 ms
-	const LT_MIN_SUSP_MS = 1500; // 最小暫停 1.5s
+	const LT_ENTER_RATE = LONG_TASK.ENTER_RATE;
+	const LT_EXIT_RATE = LONG_TASK.EXIT_RATE;
+	const LT_ENTER_AVG = LONG_TASK.ENTER_AVG;
+	const LT_EXIT_AVG = LONG_TASK.EXIT_AVG;
+	const LT_MIN_SUSP_MS = LONG_TASK.MIN_SUSPEND_MS;
 
 	// Long Task 觀測視窗（每秒歸零）
 	let ltCountWindow = 0;
@@ -220,14 +226,13 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				);
 			}
 		},
-		debug: state.debug,
-		onDebug: () => {
+		onMonitor: () => {
 			const tryOpen = () => {
-				if (__ccxDebugCtl?.showPanel) {
-					__ccxDebugCtl.showPanel();
+				if (__ccxMonitorCtl?.showPanel) {
+					__ccxMonitorCtl.showPanel();
 					return true;
 				}
-				const win = (window as any).__ccxDebug;
+				const win = (window as any).__ccxMonitor;
 				if (win?.showPanel) {
 					win.showPanel();
 					return true;
@@ -262,12 +267,11 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		maxKeepRef: () => state.maxKeep,
 	});
 
-	// ---- 喚醒守門 ----
-	// 在頁面回前景時，暫時延遲 trim 以避免第一波突變造成抖動
-	let wakeCooldownUntil = 0; // 回前景後，這段時間不自動排程 trim
-	let resumeMuteUntil = 0; // 回前景後，這段時間忽略 observer 的 mutation 觸發
-	const WAKE_COOLDOWN_MS = 8000;
-	const RESUME_MUTE_MS = 1500;
+	// ---- 喚醒守門（從 constants.ts 導入）----
+	let wakeCooldownUntil = 0;
+	let resumeMuteUntil = 0;
+	const WAKE_COOLDOWN_MS = WAKE.COOLDOWN_MS;
+	const RESUME_MUTE_MS = WAKE.RESUME_MUTE_MS;
 
 	let observerActive = false;
 
@@ -315,7 +319,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			ltSuspended = true;
 			ltEnteredAt = Date.now();
 			log(
-				`⚡ storm/suspend ON | longTask rateEMA=${ltRateEMA.toFixed(
+				`storm/suspend ON | longTask rateEMA=${ltRateEMA.toFixed(
 					2
 				)}/s avg=${ltAvgDurEMA.toFixed(1)}ms`
 			);
@@ -323,7 +327,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		} else if (shouldExit) {
 			ltSuspended = false;
 			log(
-				`🌤️ storm/suspend OFF | longTask rateEMA=${ltRateEMA.toFixed(
+				`storm/suspend OFF | longTask rateEMA=${ltRateEMA.toFixed(
 					2
 				)}/s avg=${ltAvgDurEMA.toFixed(1)}ms`
 			);
@@ -402,11 +406,21 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	}
 
 	// ---- Observer ----
+	// 防止滾動載入時過度觸發的節流機制（從 constants.ts 導入 MIN_TRIM_INTERVAL_MS）
+	let lastTrimTime = 0;
+
 	const observerHandles = createObserverHandles({
 		selectors: SELECTORS,
 		log,
 		onMutation(muts) {
 			if (Date.now() < resumeMuteUntil) return; // 回前景首波：略過
+
+			// 節流：避免短時間內過度觸發 trim
+			const now = Date.now();
+			if (now - lastTrimTime < MIN_TRIM_INTERVAL_MS) {
+				log("skip mutation (throttled)");
+				return;
+			}
 
 			// 單輪遍歷：命中新訊息節點則排程一次
 			let hit = false;
@@ -423,14 +437,22 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 					}
 				}
 			}
-			if (hit) scheduleTrim("mutation");
+			if (hit) {
+				lastTrimTime = now;
+				scheduleTrim("mutation");
+			}
 		},
 		onInit() {
 			scheduleTrim("init");
 		},
 		onRouteChange() {
-			log("🔄 route change → reset stats.domRemoved");
+			log("route change -> reset stats + clear hidden marks");
 			stats.domRemoved = 0;
+			
+			// 路由變化時，清除所有隱藏標記
+			// 因為新對話頁面的 DOM 是全新的，舊標記不應影響
+			// 這也避免了 SPA 切換時的狀態污染
+			cancelScheduledTrim();
 		},
 	});
 
@@ -481,12 +503,13 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		bucketTimer = setInterval(flushBuckets, BUCKET_MS);
 	}
 
-	// Debug 模式：暴露 metrics 與控制 API（forceTrim, showPanel 等）
-	// 並提供停止 / 快速開關入口
-	let __ccxDebugCtl: DebugController | null = null;
+	// Monitor Panel：暴露 metrics 與控制 API（forceTrim, showPanel 等）
+	// Monitor Panel 總是可用，不依賴任何 flag
+	let __ccxMonitorCtl: MonitorController | null = null;
 
-	if (DEBUG) {
-		const api: DebugApi = {
+	// 總是啟用 Monitor Panel
+	{
+		const api: MonitorApi = {
 			getMetrics: () => ({
 				debounceDelay: debounce.delay,
 				trimAvgMs: +debounce.trimAvgMs.toFixed(2),
@@ -525,22 +548,24 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			},
 		};
 
-		__ccxDebugCtl = mountDebug(api);
+		__ccxMonitorCtl = mountMonitor(api);
 
-		console.log(
-			[
-				"%cChat Cleaner – Debug mode is ON",
-				"▶ In DevTools Console, select the Content script context (not top).",
-				"▶ Panel:",
-				"    __ccxDebug.showPanel()",
-				"    __ccxDebug.hidePanel()",
-				"▶ Commands:",
-				"    __ccxDebug.getMetrics()",
-				"    __ccxDebug.forceTrim()",
-				"    __ccxDebug.forceTrimNow()",
-			].join("\n"),
-			"color:#93c5fd;font-weight:700;"
-		);
+		if (DEBUG) {
+			console.log(
+				[
+					"%cChat Cleaner – Console Logging Enabled",
+					"▶ In DevTools Console, select the Content script context (not top).",
+					"▶ Monitor Panel:",
+					"    __ccxMonitor.showPanel()",
+					"    __ccxMonitor.hidePanel()",
+					"▶ Commands:",
+					"    __ccxMonitor.getMetrics()",
+					"    __ccxMonitor.forceTrim()",
+					"    __ccxMonitor.forceTrimNow()",
+				].join("\n"),
+				"color:#93c5fd;font-weight:700;"
+			);
+		}
 	}
 
 	// 可程式化停止：釋放 observer / 註冊事件，乾淨卸載插件
@@ -571,12 +596,12 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			showMore.destroy();
 
 			try {
-				__ccxDebugCtl?.destroy();
-				__ccxDebugCtl = null;
+				__ccxMonitorCtl?.destroy();
+				__ccxMonitorCtl = null;
 			} catch {}
 
-			document.getElementById("ccx-debug")?.remove?.();
-			document.getElementById("ccx-debug-tip")?.remove?.();
+			document.getElementById("ccx-monitor")?.remove?.();
+			document.getElementById("ccx-monitor-tip")?.remove?.();
 			document.querySelector(".ccx-ui")?.remove?.();
 		} catch {}
 
