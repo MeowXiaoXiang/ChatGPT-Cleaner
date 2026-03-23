@@ -65,27 +65,22 @@
 
 ## 安裝（手動載入）
 
-1. 取得程式碼並安裝依賴（推薦：Yarn v4 via Corepack；亦支援 npm/pnpm）
+1. 取得程式碼並安裝依賴（Yarn 4 + Corepack）
 
     ```bash
     git clone https://github.com/MeowXiaoXiang/ChatGPT-Cleaner.git
     cd ChatGPT-Cleaner
 
-    # 推薦：使用 Corepack 啟用 Yarn v4（不強制）
+    # 啟用 Corepack，並使用本專案固定的 Yarn 版本
     corepack enable
-    corepack prepare yarn@stable --activate
+    corepack prepare yarn@4.12.0 --activate
     yarn install
-
-    # 或者使用 npm / pnpm / Yarn v1
-    # npm install
-    # pnpm install
     ```
 
 2. 建置（產出 dist/）
 
     ```bash
     yarn build
-    # 或 npm run build / pnpm run build
     ```
 
 3. 於 Chrome 載入（擴充功能 → 開發人員模式 → 載入未封裝項目）
@@ -94,6 +89,8 @@
     * 開啟「開發人員模式」
     * 點擊「載入未封裝項目」，選擇 `dist/` 資料夾
 
+> 本專案已固定使用 Yarn 4，並提交 `yarn.lock`；請透過 Corepack 啟用對應版本，避免 Yarn 版本不一致。
+>
 > 開發模式可使用 `yarn dev` 進入 watch 模式（會自動重建並複製靜態資源到 dist）。
 
 ---

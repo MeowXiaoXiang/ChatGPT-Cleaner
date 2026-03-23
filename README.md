@@ -64,27 +64,22 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ## Installation (Manual Loading)
 
-1. Get the code and install dependencies (Recommended: Yarn v4 via Corepack; npm/pnpm also supported)
+1. Get the code and install dependencies (Yarn 4 via Corepack)
 
     ```bash
     git clone https://github.com/MeowXiaoXiang/ChatGPT-Cleaner.git
     cd ChatGPT-Cleaner
 
-    # Recommended: Use Corepack to enable Yarn v4 (not mandatory)
+    # Enable Corepack and activate the Yarn version pinned by this repo
     corepack enable
-    corepack prepare yarn@stable --activate
+    corepack prepare yarn@4.12.0 --activate
     yarn install
-
-    # Or use npm / pnpm / Yarn v1
-    # npm install
-    # pnpm install
     ```
 
 2. Build (outputs to dist/)
 
     ```bash
     yarn build
-    # or npm run build / pnpm run build
     ```
 
 3. Load in Chrome (Extensions → Developer mode → Load unpacked)
@@ -93,6 +88,8 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
     * Enable "Developer mode"
     * Click "Load unpacked", select the `dist/` folder
 
+> This project is pinned to Yarn 4 and commits `yarn.lock`. Please use Corepack so the expected Yarn version is activated automatically.
+>
 > For development, use `yarn dev` to enter watch mode (automatically rebuilds and copies static resources to dist).
 
 ---

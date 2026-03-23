@@ -32,7 +32,6 @@ chatgpt-cleaner-*.zip
 # Yarn Berry / PnP
 .pnp.*
 .yarn/
-yarn.lock
 
 # npm
 package-lock.json

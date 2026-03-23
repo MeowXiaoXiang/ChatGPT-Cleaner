@@ -25,6 +25,7 @@ import {
 	createTrimmer,
 	batchDelete,
 	getHidden,
+	restoreMsg,
 } from "./trim-engine";
 import { requestIdle, cancelIdle, IdleHandle } from "./idle-utils";
 import type { DebounceState, Mode, Selectors, Settings, Stats } from "./types";
@@ -575,6 +576,12 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			observerHandles.stop();
 			observerActive = false;
 			cancelScheduledTrim();
+
+			// 停用時完整還原 hide 模式留下的 aria-hidden / inert / class 標記
+			const hiddenNodes = getHidden(SELECTORS.ALL);
+			for (const el of hiddenNodes) {
+				restoreMsg(el, "hide");
+			}
 
 			if (bucketTimer != null) {
 				clearInterval(bucketTimer);
