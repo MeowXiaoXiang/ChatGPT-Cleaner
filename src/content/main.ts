@@ -24,6 +24,7 @@ import {
 	createDeleter,
 	createTrimmer,
 	batchDelete,
+	getVisible,
 	getHidden,
 	restoreMsg,
 } from "./trim-engine";
@@ -107,6 +108,8 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	let scheduled = false;
 	let idleId: IdleHandle | null = null;
 	let timerId: ReturnType<typeof setTimeout> | null = null;
+	let maxObservedTurnCount = 0;
+	let lastConversationKey = location.href;
 
 	const styleTag = injectRuntimeStyle();
 
@@ -178,6 +181,34 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		scheduled = false;
 	}
 
+	function getConversationKey() {
+		return location.href;
+	}
+
+	function getVisibleTurnCount() {
+		return getVisible(SELECTORS.ALL).length;
+	}
+
+	function refreshConversationTracking(reason: string) {
+		lastConversationKey = getConversationKey();
+		maxObservedTurnCount = 0;
+		log(`auto-hide tracking reset [${reason}]`, lastConversationKey);
+	}
+
+	function ensureConversationTracking() {
+		const key = getConversationKey();
+		if (key !== lastConversationKey) {
+			refreshConversationTracking("urlChanged");
+		}
+	}
+
+	function syncHideBaseline(reason: string) {
+		if (state.mode !== "hide") return;
+		ensureConversationTracking();
+		maxObservedTurnCount = getVisibleTurnCount();
+		log(`auto-hide baseline sync [${reason}] => ${maxObservedTurnCount}`);
+	}
+
 	const { showToast, showResult } = createToast(T);
 
 	const ui = mountUI({
@@ -217,7 +248,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 
 				if (state.mode === "hide") showMore.update(); // 只在 hide 模式需要
 
-				scheduleTrim("apply");
+				scheduleTrim("apply", { manual: true });
 				showToast(T("toastApplied", "Applied"), "ok");
 			} catch (e) {
 				console.error("[chat-cleaner] Apply failed", e);
@@ -332,7 +363,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 					2
 				)}/s avg=${ltAvgDurEMA.toFixed(1)}ms`
 			);
-			scheduleTrim("stormResume"); // 恢復後排一次
+			scheduleAutoTrim("stormResume"); // 恢復後排一次
 		}
 	}
 
@@ -362,7 +393,10 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	}
 
 	// ---- 排程 ----
-	function scheduleTrim(reason = "mutation") {
+	function scheduleTrim(
+		reason = "mutation",
+		opts: { manual?: boolean; observedCount?: number } = {}
+	) {
 		if (scheduled) return;
 		if (stormGate.suspended) {
 			log(`skip schedule [${reason}] (suspended)`);
@@ -384,7 +418,20 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			const res = trimmer.trimMessages();
 			const t1 = performance.now();
 
-			if (state.mode === "hide") showMore.update();
+			if (state.mode === "hide") {
+				showMore.update();
+				if (opts.manual) {
+					syncHideBaseline(reason);
+				} else if (typeof opts.observedCount === "number") {
+					maxObservedTurnCount = Math.max(
+						maxObservedTurnCount,
+						opts.observedCount
+					);
+					log(
+						`auto-hide max observed [${reason}] => ${maxObservedTurnCount}`
+					);
+				}
+			}
 
 			debounce.trimAvgMs = EMA(
 				debounce.trimAvgMs,
@@ -404,6 +451,42 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				run();
 			}
 		}, debounce.max);
+	}
+
+	function scheduleAutoTrim(reason: "init" | "mutation" | "stormResume") {
+		ensureConversationTracking();
+
+		if (state.mode !== "hide") {
+			scheduleTrim(reason);
+			return;
+		}
+
+		const currentCount = getVisibleTurnCount();
+
+		if (reason === "init") {
+			maxObservedTurnCount = currentCount;
+			log(`auto-hide init baseline => ${maxObservedTurnCount}`);
+
+			if (currentCount > state.maxKeep) {
+				scheduleTrim(reason, { observedCount: currentCount });
+			}
+			return;
+		}
+
+		if (maxObservedTurnCount === 0) {
+			maxObservedTurnCount = currentCount;
+			log(`auto-hide baseline establish [${reason}] => ${maxObservedTurnCount}`);
+			return;
+		}
+
+		if (currentCount > maxObservedTurnCount) {
+			scheduleTrim(reason, { observedCount: currentCount });
+			return;
+		}
+
+		log(
+			`skip auto trim [${reason}] count=${currentCount} max=${maxObservedTurnCount}`
+		);
 	}
 
 	// ---- Observer ----
@@ -440,20 +523,20 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			}
 			if (hit) {
 				lastTrimTime = now;
-				scheduleTrim("mutation");
+				scheduleAutoTrim("mutation");
 			}
 		},
 		onInit() {
-			scheduleTrim("init");
+			scheduleAutoTrim("init");
 		},
 		onRouteChange() {
-			log("route change -> reset stats + clear hidden marks");
+			log("route change -> reset stats + auto-hide tracking");
 			stats.domRemoved = 0;
 			
-			// 路由變化時，清除所有隱藏標記
-			// 因為新對話頁面的 DOM 是全新的，舊標記不應影響
-			// 這也避免了 SPA 切換時的狀態污染
+			// 路由變化時，重置自動 hide 的對話追蹤狀態
+			// 避免新對話沿用舊對話的歷史最大值與排程
 			cancelScheduledTrim();
+			refreshConversationTracking("routeChange");
 		},
 	});
 
@@ -530,14 +613,17 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				mode: state.mode,
 				stats: { ...stats },
 			}),
-			forceTrim: () => scheduleTrim("manual"),
+			forceTrim: () => scheduleTrim("manual", { manual: true }),
 			forceTrimNow: () => {
 				try {
 					cancelScheduledTrim();
 					const t0 = performance.now();
 					const res = trimmer.trimMessages();
 					const t1 = performance.now();
-					if (state.mode === "hide") showMore.update();
+					if (state.mode === "hide") {
+						showMore.update();
+						syncHideBaseline("manualNow");
+					}
 					console.log(
 						"[chat-cleaner] forceTrimNow:",
 						res,
