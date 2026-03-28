@@ -3,7 +3,6 @@ import archiver from "archiver";
 import { createWriteStream, promises as fs } from "fs";
 import path from "path";
 import url from "url";
-import { cyan, green, red, yellow, bold, gray } from "kleur/colors";
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -26,7 +25,7 @@ async function main() {
 
 	// 確認 dist 存在
 	if (!(await exists(dist))) {
-		console.error(red("[zip] dist/ not found. Run `yarn build` first."));
+		console.error("[zip] dist/ not found. Run `yarn build` first.");
 		process.exit(1);
 	}
 
@@ -35,7 +34,7 @@ async function main() {
 
 	// 若已存在同名 zip，先刪除（OneDrive 偶爾鎖檔，retry 一次）
 	if (await exists(outPath)) {
-		console.log(yellow(`[zip] ${outName} already exists, removing...`));
+		console.log(`[zip] ${outName} already exists, removing...`);
 		try {
 			await fs.rm(outPath, { force: true });
 		} catch {
@@ -45,9 +44,7 @@ async function main() {
 		}
 	}
 
-	console.log(
-		cyan(`[zip] creating ${bold(outName)} from ${bold("dist/")} ...`)
-	);
+	console.log(`[zip] creating ${outName} from dist/ ...`);
 
 	// 使用 archiver 壓縮 dist/ 內容（不包一層 dist 資料夾）
 	await new Promise((resolve, reject) => {
@@ -63,13 +60,13 @@ async function main() {
 		archive.finalize();
 	});
 
-	console.log(green(`[zip] done -> ${bold(outPath)}`));
+	console.log(`[zip] done -> ${outPath}`);
 
 	// 額外提示：顯示 zip 位於哪個資料夾（灰字）
-	console.log(gray(`[zip] location: ${path.dirname(outPath)}`));
+	console.log(`[zip] location: ${path.dirname(outPath)}`);
 }
 
 main().catch((e) => {
-	console.error(red("[zip] failed:"), e);
+	console.error("[zip] failed:", e);
 	process.exit(1);
 });

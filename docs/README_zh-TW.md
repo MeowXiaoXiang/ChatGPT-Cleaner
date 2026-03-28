@@ -65,7 +65,7 @@
 
 ## 安裝（手動載入）
 
-1. 取得程式碼並安裝依賴（Yarn 4 + Corepack）
+1. 取得程式碼並安裝依賴（Yarn 4 + Corepack + PnP）
 
     ```bash
     git clone https://github.com/MeowXiaoXiang/ChatGPT-Cleaner.git
@@ -91,6 +91,8 @@
 
 > 本專案已固定使用 Yarn 4，並提交 `yarn.lock`；請透過 Corepack 啟用對應版本，避免 Yarn 版本不一致。
 >
+> 安裝流程使用 Plug'n'Play（PnP），因此不需要 `node_modules/`。`postinstall` 也會嘗試自動產生 Yarn 的 VS Code SDK；若 VS Code 仍顯示找不到全域型別或模組，請執行 `TypeScript: Select TypeScript Version` 並切換到 `Use Workspace Version`。
+>
 > 開發模式可使用 `yarn dev` 進入 watch 模式（會自動重建並複製靜態資源到 dist）。
 
 ---
@@ -107,6 +109,8 @@
 
 ```text
 │  .gitignore              # Git 忽略規則
+│  .pnp.cjs                # Yarn Plug'n'Play 執行對映
+│  .pnp.loader.mjs         # Yarn Plug'n'Play 的 ESM loader
 │  esbuild.config.mjs      # Esbuild 打包設定
 │  LICENSE                 # 授權 (MIT)
 │  package.json            # 套件與腳本定義
@@ -114,7 +118,7 @@
 │  tsconfig.json           # TypeScript 編譯設定
 │
 ├─scripts                  # 輔助腳本
-│      postinstall.js      # 安裝後自動執行 (SDK 註冊)
+│      postinstall.js      # 安裝後設定 Yarn/PnP 的 VS Code SDK
 │      zip.js              # 打包 dist/ 成 zip
 │
 ├─src

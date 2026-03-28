@@ -64,7 +64,7 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ## Installation (Manual Loading)
 
-1. Get the code and install dependencies (Yarn 4 via Corepack)
+1. Get the code and install dependencies (Yarn 4 via Corepack + PnP)
 
     ```bash
     git clone https://github.com/MeowXiaoXiang/ChatGPT-Cleaner.git
@@ -88,7 +88,9 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
     * Enable "Developer mode"
     * Click "Load unpacked", select the `dist/` folder
 
-> This project is pinned to Yarn 4 and commits `yarn.lock`. Please use Corepack so the expected Yarn version is activated automatically.
+> This project officially uses Yarn 4 + Corepack and commits `yarn.lock`. The install flow uses Plug'n'Play (PnP), so `node_modules/` is not required.
+>
+> `postinstall` will try to generate the Yarn VS Code SDK automatically. If TypeScript in VS Code still shows missing globals or unresolved modules, run `TypeScript: Select TypeScript Version` and switch to `Use Workspace Version`.
 >
 > For development, use `yarn dev` to enter watch mode (automatically rebuilds and copies static resources to dist).
 
@@ -106,6 +108,8 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ```text
 │  .gitignore              # Git ignore rules
+│  .pnp.cjs                # Yarn Plug'n'Play runtime map
+│  .pnp.loader.mjs         # Yarn Plug'n'Play ESM loader
 │  esbuild.config.mjs      # Esbuild bundling configuration
 │  LICENSE                 # License (MIT)
 │  package.json            # Package and script definitions
@@ -113,7 +117,7 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 │  tsconfig.json           # TypeScript compilation settings
 │
 ├─scripts                  # Helper scripts
-│      postinstall.js      # Post-install auto-execution (SDK registration)
+│      postinstall.js      # Post-install VS Code SDK setup for Yarn/PnP
 │      zip.js              # Package dist/ into zip
 │
 ├─src

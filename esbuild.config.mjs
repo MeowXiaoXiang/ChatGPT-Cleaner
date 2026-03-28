@@ -3,7 +3,6 @@ import { build, context } from "esbuild";
 import { promises as fs } from "fs";
 import path from "path";
 import url from "url";
-import { cyan, green, red, yellow, bold, gray } from "kleur/colors";
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === "production";
@@ -58,7 +57,7 @@ async function copyStatics() {
 		if (await exists(src)) await copyRecursive(src, dest);
 	}
 	await writeBuildMeta();
-	console.log(green("[copy-static] done"));
+	console.log("[copy-static] done");
 }
 
 // ---------- build meta ----------
@@ -89,17 +88,13 @@ function printResult(result) {
 		.filter(([file]) => file.startsWith(outdir))
 		.map(
 			([file, o]) =>
-				` ${gray("•")} ${bold(path.basename(file))}: ${bold(
-					kb(o.bytes || 0)
-				)}`
+				` - ${path.basename(file)}: ${kb(o.bytes || 0)}`
 		)
 		.sort();
 
-	const mode = isProd ? yellow("prod") : cyan("dev");
+	const mode = isProd ? "prod" : "dev";
 	console.log(
-		`${bold("[build]")} ${mode} ${green("done")}. total: ${bold(
-			kb(total)
-		)}\n${lines.join("\n")}`
+		`[build] ${mode} done. total: ${kb(total)}\n${lines.join("\n")}`
 	);
 }
 
@@ -109,10 +104,8 @@ const afterBuildPlugin = {
 	setup(buildApi) {
 		buildApi.onEnd(async (result) => {
 			if (result.errors?.length) {
-				console.error(red("[build] failed with errors:"));
-				result.errors.forEach((e) =>
-					console.error(red(" -"), e.text || e)
-				);
+				console.error("[build] failed with errors:");
+				result.errors.forEach((e) => console.error(" -", e.text || e));
 				return;
 			}
 			printResult(result);
@@ -144,17 +137,13 @@ if (isWatch) {
 	const ctx = await context(common); // 建立 context
 	await ctx.watch(); // 啟動 watch（初次也會觸發 onEnd）
 	console.log(
-		cyan(
-			`[watch] building & watching… (${bold(
-				isProd ? "production" : "development"
-			)})`
-		)
+		`[watch] building & watching... (${isProd ? "production" : "development"})`
 	);
 } else {
 	await rmrf(outdir);
 	const result = await build(common).catch((err) => {
-		console.error(red("[build] failed:"), err);
+		console.error("[build] failed:", err);
 		process.exitCode = 1;
 	});
-	if (result) console.log(green("[build] complete"));
+	if (result) console.log("[build] complete");
 }
