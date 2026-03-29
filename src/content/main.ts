@@ -264,11 +264,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 					__ccxMonitorCtl.showPanel();
 					return true;
 				}
-				const win = (window as any).__ccxMonitor;
-				if (win?.showPanel) {
-					win.showPanel();
-					return true;
-				}
 				return false;
 			};
 			if (tryOpen()) return;
@@ -587,71 +582,88 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		bucketTimer = setInterval(flushBuckets, BUCKET_MS);
 	}
 
-	// Monitor Panel：暴露 metrics 與控制 API（forceTrim, showPanel 等）
-	// Monitor Panel 總是可用，不依賴任何 flag
+	function getMonitorMetrics() {
+		return {
+			debounceDelay: debounce.delay,
+			trimAvgMs: +debounce.trimAvgMs.toFixed(2),
+
+			suspended: stormGate.suspended,
+			longTaskRateEMA: +ltRateEMA.toFixed(2),
+			longTaskAvgMsEMA: +ltAvgDurEMA.toFixed(1),
+			ltThresholds: {
+				enterRate: LT_ENTER_RATE,
+				exitRate: LT_EXIT_RATE,
+				enterAvg: LT_ENTER_AVG,
+				exitAvg: LT_EXIT_AVG,
+				minSuspendMs: LT_MIN_SUSP_MS,
+			},
+
+			maxKeep: state.maxKeep,
+			mode: state.mode,
+			stats: { ...stats },
+		};
+	}
+
+	function forceTrim() {
+		scheduleTrim("manual", { manual: true });
+	}
+
+	function forceTrimNow() {
+		try {
+			cancelScheduledTrim();
+			const t0 = performance.now();
+			const res = trimmer.trimMessages();
+			const t1 = performance.now();
+			if (state.mode === "hide") {
+				showMore.update();
+				syncHideBaseline("manualNow");
+			}
+			console.log(
+				"[chat-cleaner] forceTrimNow:",
+				res,
+				`${(t1 - t0).toFixed(2)}ms`
+			);
+		} catch (e) {
+			console.error("[chat-cleaner] forceTrimNow failed", e);
+		}
+	}
+
+	// Monitor Panel：僅負責顯示，不暴露全域 API
 	let __ccxMonitorCtl: MonitorController | null = null;
 
 	// 總是啟用 Monitor Panel
 	{
 		const api: MonitorApi = {
-			getMetrics: () => ({
-				debounceDelay: debounce.delay,
-				trimAvgMs: +debounce.trimAvgMs.toFixed(2),
-
-				suspended: stormGate.suspended,
-				longTaskRateEMA: +ltRateEMA.toFixed(2),
-				longTaskAvgMsEMA: +ltAvgDurEMA.toFixed(1),
-				ltThresholds: {
-					enterRate: LT_ENTER_RATE,
-					exitRate: LT_EXIT_RATE,
-					enterAvg: LT_ENTER_AVG,
-					exitAvg: LT_EXIT_AVG,
-					minSuspendMs: LT_MIN_SUSP_MS,
-				},
-
-				maxKeep: state.maxKeep,
-				mode: state.mode,
-				stats: { ...stats },
-			}),
-			forceTrim: () => scheduleTrim("manual", { manual: true }),
-			forceTrimNow: () => {
-				try {
-					cancelScheduledTrim();
-					const t0 = performance.now();
-					const res = trimmer.trimMessages();
-					const t1 = performance.now();
-					if (state.mode === "hide") {
-						showMore.update();
-						syncHideBaseline("manualNow");
-					}
-					console.log(
-						"[chat-cleaner] forceTrimNow:",
-						res,
-						`${(t1 - t0).toFixed(2)}ms`
-					);
-				} catch (e) {
-					console.error("[chat-cleaner] forceTrimNow failed", e);
-				}
-			},
+			getMetrics: getMonitorMetrics,
 		};
 
 		__ccxMonitorCtl = mountMonitor(api);
 
 		if (DEBUG) {
+			(window as any).__ccxDebug = {
+				getMetrics: getMonitorMetrics,
+				forceTrim,
+				forceTrimNow,
+				showMonitor: () => __ccxMonitorCtl?.showPanel(),
+				hideMonitor: () => __ccxMonitorCtl?.hidePanel(),
+			};
+			(globalThis as any).__ccxDebug = (window as any).__ccxDebug;
 			console.log(
 				[
 					"%cChat Cleaner – Console Logging Enabled",
 					"▶ In DevTools Console, select the Content script context (not top).",
-					"▶ Monitor Panel:",
-					"    __ccxMonitor.showPanel()",
-					"    __ccxMonitor.hidePanel()",
-					"▶ Commands:",
-					"    __ccxMonitor.getMetrics()",
-					"    __ccxMonitor.forceTrim()",
-					"    __ccxMonitor.forceTrimNow()",
+					"▶ Debug Commands:",
+					"    __ccxDebug.getMetrics()",
+					"    __ccxDebug.forceTrim()",
+					"    __ccxDebug.forceTrimNow()",
+					"    __ccxDebug.showMonitor()",
+					"    __ccxDebug.hideMonitor()",
 				].join("\n"),
 				"color:#93c5fd;font-weight:700;"
 			);
+		} else {
+			delete (window as any).__ccxDebug;
+			delete (globalThis as any).__ccxDebug;
 		}
 	}
 
@@ -692,6 +704,9 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				__ccxMonitorCtl?.destroy();
 				__ccxMonitorCtl = null;
 			} catch {}
+
+			delete (window as any).__ccxDebug;
+			delete (globalThis as any).__ccxDebug;
 
 			document.getElementById("ccx-monitor")?.remove?.();
 			document.getElementById("ccx-monitor-tip")?.remove?.();

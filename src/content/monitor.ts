@@ -20,6 +20,8 @@
 //   - Chip 狀態顯示 Running / Suspend，連動 stormGate 狀態
 // ------------------------------------------------------------
 
+import { MONITOR } from "./constants";
+
 export type MonitorApi = {
 	getMetrics: () => {
 		debounceDelay: number;
@@ -38,8 +40,6 @@ export type MonitorApi = {
 		mode: "hide" | "delete";
 		stats: { domRemoved: number };
 	};
-	forceTrim: () => void;
-	forceTrimNow: () => void;
 };
 
 export type MonitorController = {
@@ -49,8 +49,8 @@ export type MonitorController = {
 };
 
 // ===== 常數 =====
-const REFRESH_MS = 1000;
-const MAX_POINTS = 240;
+const REFRESH_MS = MONITOR.REFRESH_MS;
+const MAX_POINTS = MONITOR.MAX_POINTS;
 
 // 調色盤：半透明自適應主題（支援 light/dark 背景）
 const COLOR = {
@@ -76,8 +76,8 @@ const COLOR = {
 };
 
 // RWD 參數
-const CH_MIN = 96;
-const CH_MAX = 240;
+const CH_MIN = MONITOR.CHART_HEIGHT_MIN;
+const CH_MAX = MONITOR.CHART_HEIGHT_MAX;
 
 // 是否啟用離屏緩衝（提升繪圖效能）
 const USE_BUFFER_BG = true;
@@ -904,8 +904,6 @@ export function mountMonitor(api: MonitorApi): MonitorController {
 		bgBuffer = null;
 		styleEl = null;
 
-		delete (window as any).__ccxMonitor;
-		delete (globalThis as any).__ccxMonitor;
 	}
 
 	function onWindowResize() {
@@ -1043,16 +1041,6 @@ export function mountMonitor(api: MonitorApi): MonitorController {
 		});
 	}
 
-	// 對外 API：MonitorController + 全域 __ccxMonitor
-	const controller: MonitorController = { showPanel, hidePanel, destroy };
-	(window as any).__ccxMonitor = {
-		showPanel,
-		hidePanel,
-		getMetrics: api.getMetrics,
-		forceTrim: api.forceTrim,
-		forceTrimNow: api.forceTrimNow,
-	};
-	(globalThis as any).__ccxMonitor = (window as any).__ccxMonitor;
-	return controller;
+	return { showPanel, hidePanel, destroy };
 }
 
