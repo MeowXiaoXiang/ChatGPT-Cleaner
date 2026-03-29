@@ -11,7 +11,7 @@
 
 Lightweight ChatGPT conversation cleaner: Keep recent messages, hide or delete older content to reduce page load.
 
-![version](https://img.shields.io/badge/version-1.1.0-2563EB)
+![version](https://img.shields.io/badge/version-1.1.1-2563EB)
 ![Manifest v3](https://img.shields.io/badge/Manifest-v3-334155)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)
 ![License](https://img.shields.io/badge/License-MIT-10B981)
