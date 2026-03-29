@@ -13,7 +13,7 @@
 -   **trim-engine.ts**: Implements hide/restore/delete operations. Features adaptive batch deletion using idle callbacks with dynamic chunk sizing (6-20ms target).
 -   **observer.ts**: MutationObserver wrapper with route change detection, internal UI filtering, and rAF batching to coalesce mutations within a single frame.
 -   **ui.ts**: Pure UI components—floating ball control panel, toast notifications (with deduplication/accumulation), tooltip system, and "Show More" button.
--   **monitor.ts**: Performance monitoring panel with real-time KPI display, charts, and metrics. Always available via UI button.
+-   **monitor.ts**: Performance monitoring panel with real-time KPI display, charts, and metrics. Pure display panel, always available via UI button.
 -   **dom-utils.ts**: Low-level DOM utilities for marking/unmarking hidden elements, safe selectors, and style injection.
 -   **idle-utils.ts**: `requestIdleCallback` ponyfill for cross-browser compatibility.
 -   **types.ts**: Centralized TypeScript definitions—no logic, just interfaces.
@@ -35,7 +35,7 @@ All user settings stored in `localStorage`:
 
 -   `ccx_enabled`: `"0"` disables the extension (default: enabled)
 -   `ccx_debug`: `"1"` enables console logging only (Monitor panel is always available)
--   `ccx_max_keep`: Number of recent messages to keep (default: 30)
+-   `ccx_max_keep`: Number of recent messages to keep (default: 25)
 -   `ccx_notify`: `"0"` disables toast notifications
 -   `ccx_mode`: `"hide"` (restorable) or `"delete"` (permanent DOM removal)
 
@@ -82,17 +82,16 @@ Observer ignores mutations within `.ccx-ui`, `.ccx-toast-container`, `.ccx-showm
 
 ### Setup & Build
 
-> **Recommended**: Use **Yarn** for dependency management. Enable via Corepack:
+> **Recommended**: Use **Yarn 4 + Corepack + PnP** for dependency management:
 >
 > ```bash
 > corepack enable
-> corepack prepare yarn@stable --activate
+> corepack prepare yarn@4.12.0 --activate
 > ```
 
 ```bash
-# Install dependencies (Yarn recommended)
+# Install dependencies
 yarn install
-# or: npm install
 
 # Development (watch mode)
 yarn dev
@@ -109,7 +108,7 @@ yarn zip
 
 ### Loading Extension
 
-1. Build project: `npm run build`
+1. Build project: `yarn build`
 2. Open `chrome://extensions`
 3. Enable "Developer mode"
 4. Click "Load unpacked", select `dist/` folder
@@ -125,11 +124,13 @@ location.reload();
 
 Logs appear as `[chat-cleaner] ...` in console.
 
-**Performance Monitor Panel**: Always available via the 📊 button in the UI panel. Shows real-time performance stats, trimmer state, and control buttons. Accessible via `__ccxMonitor` global object.
+**Performance Monitor Panel**: Always available via the 📊 button in the UI panel. Shows real-time performance stats, trimmer state, and thresholds. The panel itself exposes no global API.
+
+**Debug Commands**: Only available when `ccx_debug=1`. Use `__ccxDebug.getMetrics()`, `__ccxDebug.forceTrim()`, `__ccxDebug.forceTrimNow()`, `__ccxDebug.showMonitor()`, and `__ccxDebug.hideMonitor()`.
 
 ### Testing Changes
 
--   **Content Scripts**: Modify source → `npm run dev` auto-rebuilds → reload ChatGPT tab
+-   **Content Scripts**: Modify source → `yarn dev` auto-rebuilds → reload ChatGPT tab
 -   **Background**: Requires extension reload at `chrome://extensions`
 -   **Manifest/Statics**: Auto-copied by build script's `afterBuildPlugin.onEnd`
 
@@ -248,7 +249,7 @@ None at runtime. DevDependencies:
 -   `esbuild`: Bundler
 -   `typescript`: Type checking
 -   `@types/chrome`: Chrome API types
--   `cross-env`, `cross-zip`, `kleur`, `rimraf`: Build utilities
+-   `cross-env`, `archiver`, `rimraf`: Build utilities
 
 ## Gotchas
 
