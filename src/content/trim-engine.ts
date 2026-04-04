@@ -53,12 +53,17 @@ const SLICE_LOWER_MS = BATCH.SLICE_LOWER_MS;
 /* ------------------------------------------ */
 
 /** 直接從 DOM 刪除訊息節點，並更新統計數據 */
-export function createDeleter(log: LogFn, stats: Stats) {
+export function createDeleter(
+	log: LogFn,
+	stats: Stats,
+	onDelete?: (el: Element, wasHidden: boolean) => void
+) {
 	return function deleteMsg(el: Element) {
 		const html = el as HTMLElement;
 		if (!html || !html.isConnected) return;
 
 		const sig = shortSelector(html);
+		const wasHidden = isMarkedHidden(html);
 
 		// 標記為不可互動（保險）
 		if (!html.hasAttribute("inert")) html.setAttribute("inert", "");
@@ -68,6 +73,7 @@ export function createDeleter(log: LogFn, stats: Stats) {
 			html.classList.add(CLS.HIDDEN);
 		if (!html.classList.contains(CLS.INERT)) html.classList.add(CLS.INERT);
 
+		onDelete?.(html, wasHidden);
 		html.remove();
 		stats.domRemoved++;
 		log("deleteMsg -> DOM removed", sig);
@@ -78,19 +84,30 @@ export function createDeleter(log: LogFn, stats: Stats) {
 export function hideMsg(
 	el: Element,
 	mode: Mode,
-	deleter: (el: Element) => void
+	deleter: (el: Element) => void,
+	onHidden?: (el: Element) => void
 ) {
 	if (mode === "delete") {
 		deleter(el);
 		return;
 	}
-	if (!isMarkedHidden(el)) markHidden(el);
+	if (!isMarkedHidden(el)) {
+		markHidden(el);
+		onHidden?.(el);
+	}
 }
 
 // hide 模式才允許還原
-export function restoreMsg(el: Element, mode: Mode) {
+export function restoreMsg(
+	el: Element,
+	mode: Mode,
+	onRestored?: (el: Element) => void
+) {
 	if (mode === "delete") return;
-	if (isMarkedHidden(el)) unmarkHidden(el);
+	if (isMarkedHidden(el)) {
+		unmarkHidden(el);
+		onRestored?.(el);
+	}
 }
 
 /* -------------- */
@@ -199,6 +216,8 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 		deleteMsg,
 		showResult,
 		log,
+		onTurnHidden,
+		onTurnRestored,
 	} = deps;
 
 	const ALL = selectors.ALL;
@@ -211,14 +230,14 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 	// 若 StormGate 暫停，無論模式一律改為 hide，避免刪除造成額外壓力
 	function safeDeleteOrHide(el: Element): "del" | "hide" {
 		if (stormGate.suspended) {
-			hideMsg(el, "hide", deleteMsg);
+			hideMsg(el, "hide", deleteMsg, onTurnHidden);
 			return "hide";
 		}
 		if (modeRef() === "delete") {
 			deleteMsg(el);
 			return "del";
 		}
-		hideMsg(el, "hide", deleteMsg);
+		hideMsg(el, "hide", deleteMsg, onTurnHidden);
 		return "hide";
 	}
 
@@ -335,7 +354,7 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 			i >= 0 && toRestore > 0;
 			i--, toRestore--
 		) {
-			restoreMsg(hid[i], "hide");
+			restoreMsg(hid[i], "hide", onTurnRestored);
 			restored++;
 		}
 		if (restored > 0) {

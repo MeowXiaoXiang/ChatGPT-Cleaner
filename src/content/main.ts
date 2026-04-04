@@ -17,14 +17,13 @@
 //   - 調速僅依據 trim 平均耗時，不依據 DOM Mutation 數量
 // ------------------------------------------------------------
 
-import { injectRuntimeStyle } from "./dom-utils";
+import { injectRuntimeStyle, isMarkedHidden } from "./dom-utils";
 import { createI18n, createToast, mountUI, mountShowMore } from "./ui";
 import { createObserverHandles } from "./observer";
 import {
 	createDeleter,
 	createTrimmer,
 	batchDelete,
-	getVisible,
 	getHidden,
 	restoreMsg,
 } from "./trim-engine";
@@ -110,6 +109,10 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	let timerId: ReturnType<typeof setTimeout> | null = null;
 	let maxObservedTurnCount = 0;
 	let lastConversationKey = location.href;
+	let inventoryResyncTimer: ReturnType<typeof setTimeout> | null = null;
+	let pendingTrimAfterResume = false;
+	let pendingTrimManual = false;
+	let scheduledTrimManual = false;
 
 	const styleTag = injectRuntimeStyle();
 
@@ -169,6 +172,156 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		},
 	};
 
+	const inventory = {
+		knownTurnIds: new Set<string>(),
+		turnHidden: new Map<string, boolean>(),
+		visibleCount: 0,
+		hiddenCount: 0,
+		deleteModeRemovedCount: 0,
+		conversationKey: getConversationKey(),
+		tempSeq: 0,
+		elementKeys: new WeakMap<Element, string>(),
+	};
+
+	function resetInventory(
+		reason: string,
+		opts: { resetDeleteCount?: boolean } = {}
+	) {
+		inventory.knownTurnIds.clear();
+		inventory.turnHidden.clear();
+		inventory.visibleCount = 0;
+		inventory.hiddenCount = 0;
+		inventory.conversationKey = getConversationKey();
+		if (opts.resetDeleteCount) inventory.deleteModeRemovedCount = 0;
+		log(`inventory reset [${reason}]`);
+	}
+
+	function getTurnKey(el: Element): string {
+		const existed = inventory.elementKeys.get(el);
+		if (existed) return existed;
+
+		const base =
+			el.getAttribute("data-turn-id") ||
+			el.getAttribute("data-testid") ||
+			`ccx-temp-turn-${++inventory.tempSeq}`;
+
+		inventory.elementKeys.set(el, base);
+		return base;
+	}
+
+	function scheduleInventoryResync(
+		reason: string,
+		opts: { resetDeleteCount?: boolean } = {}
+	) {
+		if (inventoryResyncTimer != null) return;
+		inventoryResyncTimer = setT(() => {
+			inventoryResyncTimer = null;
+			resyncInventory(reason, opts);
+		}, 0);
+	}
+
+	function ensureInventoryNonNegative(reason: string) {
+		if (inventory.visibleCount >= 0 && inventory.hiddenCount >= 0) return;
+		log(
+			`inventory drift detected [${reason}] visible=${inventory.visibleCount} hidden=${inventory.hiddenCount}`
+		);
+		scheduleInventoryResync(`drift:${reason}`);
+	}
+
+	function resyncInventory(
+		reason: string,
+		opts: { resetDeleteCount?: boolean } = {}
+	) {
+		resetInventory(reason, opts);
+		const turns = Array.from(document.querySelectorAll<Element>(SELECTORS.ALL));
+		for (const el of turns) {
+			const key = getTurnKey(el);
+			const hidden = isMarkedHidden(el);
+			inventory.knownTurnIds.add(key);
+			inventory.turnHidden.set(key, hidden);
+			if (hidden) inventory.hiddenCount++;
+			else inventory.visibleCount++;
+		}
+		log(
+			`inventory resync [${reason}] visible=${inventory.visibleCount} hidden=${inventory.hiddenCount} turns=${inventory.knownTurnIds.size}`
+		);
+	}
+
+	function trackAddedTurn(el: Element) {
+		const key = getTurnKey(el);
+		if (inventory.knownTurnIds.has(key)) return;
+
+		const hidden = isMarkedHidden(el);
+		inventory.knownTurnIds.add(key);
+		inventory.turnHidden.set(key, hidden);
+		if (hidden) inventory.hiddenCount++;
+		else inventory.visibleCount++;
+		ensureInventoryNonNegative("trackAddedTurn");
+	}
+
+	function trackRemovedTurn(el: Element) {
+		const key = getTurnKey(el);
+		if (!inventory.knownTurnIds.has(key)) return;
+
+		const hidden =
+			inventory.turnHidden.get(key) ?? isMarkedHidden(el);
+		inventory.knownTurnIds.delete(key);
+		inventory.turnHidden.delete(key);
+		if (hidden) inventory.hiddenCount--;
+		else inventory.visibleCount--;
+		ensureInventoryNonNegative("trackRemovedTurn");
+	}
+
+	function trackTurnHidden(el: Element) {
+		const key = getTurnKey(el);
+		if (!inventory.knownTurnIds.has(key)) {
+			scheduleInventoryResync("hideUnknown");
+			return;
+		}
+
+		if (inventory.turnHidden.get(key)) return;
+		inventory.turnHidden.set(key, true);
+		inventory.visibleCount--;
+		inventory.hiddenCount++;
+		ensureInventoryNonNegative("trackTurnHidden");
+	}
+
+	function trackTurnRestored(el: Element) {
+		const key = getTurnKey(el);
+		if (!inventory.knownTurnIds.has(key)) {
+			scheduleInventoryResync("restoreUnknown");
+			return;
+		}
+
+		if (!inventory.turnHidden.get(key)) return;
+		inventory.turnHidden.set(key, false);
+		inventory.hiddenCount--;
+		inventory.visibleCount++;
+		ensureInventoryNonNegative("trackTurnRestored");
+	}
+
+	function trackTurnDeleted(el: Element, wasHidden: boolean) {
+		const key = getTurnKey(el);
+		const known = inventory.knownTurnIds.has(key);
+		const hidden = known
+			? inventory.turnHidden.get(key) ?? wasHidden
+			: wasHidden;
+
+		if (known) {
+			inventory.knownTurnIds.delete(key);
+			inventory.turnHidden.delete(key);
+			if (hidden) inventory.hiddenCount--;
+			else inventory.visibleCount--;
+		} else {
+			scheduleInventoryResync("deleteUnknown");
+		}
+
+		if (state.mode === "delete") {
+			inventory.deleteModeRemovedCount++;
+		}
+		ensureInventoryNonNegative("trackTurnDeleted");
+	}
+
 	function cancelScheduledTrim() {
 		if (idleId != null) {
 			cancelIdle(idleId);
@@ -179,6 +332,12 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			timerId = null;
 		}
 		scheduled = false;
+		scheduledTrimManual = false;
+	}
+
+	function queueTrimAfterResume(opts: { manual?: boolean } = {}) {
+		pendingTrimAfterResume = true;
+		pendingTrimManual = pendingTrimManual || !!opts.manual;
 	}
 
 	function getConversationKey() {
@@ -186,7 +345,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	}
 
 	function getVisibleTurnCount() {
-		return getVisible(SELECTORS.ALL).length;
+		return inventory.visibleCount;
 	}
 
 	function refreshConversationTracking(reason: string) {
@@ -226,6 +385,14 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				state.mode = next.mode;
 				state.notify = next.notify;
 
+				if (oldMode !== state.mode) {
+					if (state.mode === "delete") {
+						inventory.deleteModeRemovedCount = 0;
+					} else {
+						inventory.deleteModeRemovedCount = 0;
+					}
+				}
+
 				localStorage.setItem("ccx_max_keep", String(state.maxKeep));
 				localStorage.setItem("ccx_mode", state.mode);
 				localStorage.setItem("ccx_notify", state.notify ? "1" : "0");
@@ -234,15 +401,21 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				if (oldMode === "hide" && state.mode === "delete") {
 					const hiddenNodes = getHidden(SELECTORS.ALL);
 					if (hiddenNodes.length) {
-						batchDelete(hiddenNodes, deleteMsg, log, (count) => {
-							log(`purge(hidden→delete) ${count}`);
-							if (state.notify && count > 0) {
-								showToast(
-									`${count} ${T("toastDeleted", "deleted")}`,
-									"delete"
-								);
-							}
-						});
+						batchDelete(
+							hiddenNodes,
+							deleteMsg,
+							log,
+							(count) => {
+								log(`purge(hidden→delete) ${count}`);
+								if (state.notify && count > 0) {
+									showToast(
+										`${count} ${T("toastDeleted", "deleted")}`,
+										"delete"
+									);
+								}
+							},
+							() => scheduleInventoryResync("hideToDeletePurge")
+						);
 					}
 				}
 
@@ -271,7 +444,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		},
 	});
 
-	const deleteMsg = createDeleter(log, stats);
+	const deleteMsg = createDeleter(log, stats, trackTurnDeleted);
 	const trimmer = createTrimmer({
 		selectors: SELECTORS,
 		modeRef: () => state.mode,
@@ -283,6 +456,8 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			if (state.notify) showResult(res, state.mode, auto);
 		},
 		log,
+		onTurnHidden: trackTurnHidden,
+		onTurnRestored: trackTurnRestored,
 	});
 
 	// ---- Show More（只在 hide 模式顯示）----
@@ -350,6 +525,9 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 					2
 				)}/s avg=${ltAvgDurEMA.toFixed(1)}ms`
 			);
+			if (scheduled) {
+				queueTrimAfterResume({ manual: scheduledTrimManual });
+			}
 			cancelScheduledTrim(); // 暫停時取消既定排程
 		} else if (shouldExit) {
 			ltSuspended = false;
@@ -358,7 +536,15 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 					2
 				)}/s avg=${ltAvgDurEMA.toFixed(1)}ms`
 			);
-			scheduleAutoTrim("stormResume"); // 恢復後排一次
+			if (pendingTrimAfterResume) {
+				const manual = pendingTrimManual;
+				pendingTrimAfterResume = false;
+				pendingTrimManual = false;
+				log(`resume pending trim | manual=${manual ? "1" : "0"}`);
+				scheduleTrim("stormResumePending", { manual });
+			} else {
+				scheduleAutoTrim("stormResume"); // 恢復後排一次
+			}
 		}
 	}
 
@@ -394,6 +580,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	) {
 		if (scheduled) return;
 		if (stormGate.suspended) {
+			queueTrimAfterResume({ manual: opts.manual });
 			log(`skip schedule [${reason}] (suspended)`);
 			return;
 		}
@@ -404,6 +591,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		}
 
 		scheduled = true;
+		scheduledTrimManual = !!opts.manual;
 		log(`scheduleTrim [${reason}] delay=${debounce.delay}ms`);
 
 		const run = () => {
@@ -491,6 +679,10 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	const observerHandles = createObserverHandles({
 		selectors: SELECTORS,
 		log,
+		onTurnMutations(batch) {
+			for (const el of batch.removed) trackRemovedTurn(el);
+			for (const el of batch.added) trackAddedTurn(el);
+		},
 		onMutation(muts) {
 			if (Date.now() < resumeMuteUntil) return; // 回前景首波：略過
 
@@ -522,11 +714,15 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			}
 		},
 		onInit() {
+			resyncInventory("observerInit");
 			scheduleAutoTrim("init");
 		},
 		onRouteChange() {
 			log("route change -> reset stats + auto-hide tracking");
 			stats.domRemoved = 0;
+			resetInventory("routeChange", { resetDeleteCount: true });
+			pendingTrimAfterResume = false;
+			pendingTrimManual = false;
 			
 			// 路由變化時，重置自動 hide 的對話追蹤狀態
 			// 避免新對話沿用舊對話的歷史最大值與排程
@@ -600,7 +796,11 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 
 			maxKeep: state.maxKeep,
 			mode: state.mode,
-			stats: { ...stats },
+			stats: {
+				...stats,
+				hiddenNow: inventory.hiddenCount,
+				removedNow: inventory.deleteModeRemovedCount,
+			},
 		};
 	}
 
@@ -674,6 +874,12 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			observerHandles.stop();
 			observerActive = false;
 			cancelScheduledTrim();
+			pendingTrimAfterResume = false;
+			pendingTrimManual = false;
+			if (inventoryResyncTimer != null) {
+				clearT(inventoryResyncTimer);
+				inventoryResyncTimer = null;
+			}
 
 			// 停用時完整還原 hide 模式留下的 aria-hidden / inert / class 標記
 			const hiddenNodes = getHidden(SELECTORS.ALL);

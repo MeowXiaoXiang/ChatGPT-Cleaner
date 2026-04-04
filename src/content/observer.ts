@@ -15,7 +15,11 @@
 //   - rAF 合批，避免高頻 mutation 時過度觸發上游邏輯
 // ------------------------------------------------------------
 
-import type { CreateObserverDeps, ObserverHandles } from "./types";
+import type {
+	CreateObserverDeps,
+	ObserverHandles,
+	TurnMutationBatch,
+} from "./types";
 import { UI_SELECTORS } from "./constants";
 
 // 需忽略的內部 UI 節點（從 constants.ts 導入）
@@ -46,7 +50,14 @@ function recordIsInternalOnly(m: MutationRecord): boolean {
 export function createObserverHandles(
 	deps: CreateObserverDeps & { onRouteChange?: () => void }
 ): ObserverHandles {
-	const { selectors, log, onMutation, onInit, onRouteChange } = deps;
+	const {
+		selectors,
+		log,
+		onMutation,
+		onTurnMutations,
+		onInit,
+		onRouteChange,
+	} = deps;
 
 	let observer: MutationObserver | null = null; // 主觀測器
 	let pendingNavWaiter: MutationObserver | null = null; // 一次性等待容器
@@ -55,6 +66,7 @@ export function createObserverHandles(
 	let currentTarget: Element | null = null;
 	let routeWatchersInstalled = false;
 	let lastURL = location.href;
+	let pendingRouteContainer: Element | null = null;
 
 	// Rebind 節流 (80ms)
 	let rebindTimer: number | null = null;
@@ -69,6 +81,53 @@ export function createObserverHandles(
 	// rAF 合批 (同一畫格收斂 mutation)
 	let rafHandle: number | null = null;
 	const pendingBatch: MutationRecord[] = [];
+
+	function collectTurnElements(nodes: Iterable<Node>): Element[] {
+		const out: Element[] = [];
+		const seen = new Set<Element>();
+
+		const push = (el: Element | null | undefined) => {
+			if (!el || seen.has(el) || isInternalUI(el)) return;
+			seen.add(el);
+			out.push(el);
+		};
+
+		for (const node of nodes) {
+			const el = node as Element | null;
+			if (!el || el.nodeType !== 1) continue;
+			if (isInternalUI(el)) continue;
+
+			if (el.matches?.(selectors.ALL)) push(el);
+			el.querySelectorAll?.(selectors.ALL).forEach((turn) => push(turn));
+		}
+
+		return out;
+	}
+
+	function buildTurnMutationBatch(muts: MutationRecord[]): TurnMutationBatch {
+		const addedNodes: Node[] = [];
+		const removedNodes: Node[] = [];
+
+		for (const m of muts) {
+			addedNodes.push(...Array.from(m.addedNodes));
+			removedNodes.push(...Array.from(m.removedNodes));
+		}
+
+		return {
+			added: collectTurnElements(addedNodes),
+			removed: collectTurnElements(removedNodes),
+		};
+	}
+
+	function flushBatch(batch: MutationRecord[]) {
+		if (!batch.length) return;
+		const turnBatch = buildTurnMutationBatch(batch);
+		if (turnBatch.added.length || turnBatch.removed.length) {
+			onTurnMutations?.(turnBatch);
+		}
+		onMutation(batch);
+	}
+
 	function enqueueAndMaybeFlush(batch: MutationRecord[]) {
 		if (!batch.length) return;
 		pendingBatch.push(...batch);
@@ -76,7 +135,7 @@ export function createObserverHandles(
 		rafHandle = requestAnimationFrame(() => {
 			const flushed = pendingBatch.splice(0, pendingBatch.length);
 			rafHandle = null;
-			if (flushed.length) onMutation(flushed);
+			flushBatch(flushed);
 		});
 	}
 
@@ -103,7 +162,7 @@ export function createObserverHandles(
 				}
 				// 在清空前 flush 一次，避免丟掉最後的 mutation
 				if (pendingBatch.length) {
-					onMutation(pendingBatch.splice(0));
+					flushBatch(pendingBatch.splice(0));
 				}
 
 				waitForMessageContainerOnce((c) => attach(c));
@@ -124,13 +183,16 @@ export function createObserverHandles(
 
 	// 等待訊息容器出現（一次性）
 	function waitForMessageContainerOnce(
-		onReady: (container: Element) => void
+		onReady: (container: Element) => void,
+		opts: { skipContainer?: Element | null } = {}
 	) {
 		const firstTurn = document.querySelector(
 			selectors.ALL
 		) as Element | null;
-		if (firstTurn?.parentElement) {
-			onReady(firstTurn.parentElement);
+		const firstParent = firstTurn?.parentElement ?? null;
+		if (firstParent && firstParent !== opts.skipContainer) {
+			pendingRouteContainer = null;
+			onReady(firstParent);
 			onInit();
 			return;
 		}
@@ -153,10 +215,12 @@ export function createObserverHandles(
 
 					const parent = (turn as Element).parentElement;
 					if (!parent) continue;
+					if (parent === opts.skipContainer) continue;
 
 					pendingNavWaiter?.disconnect();
 					pendingNavWaiter = null;
 
+					pendingRouteContainer = null;
 					onReady(parent);
 					onInit();
 					return;
@@ -168,8 +232,11 @@ export function createObserverHandles(
 
 	// 啟動：尋找容器並附掛 observer
 	function start() {
+		const skipContainer = pendingRouteContainer;
 		stopCore();
-		waitForMessageContainerOnce((container) => attach(container));
+		waitForMessageContainerOnce((container) => attach(container), {
+			skipContainer,
+		});
 	}
 
 	// 停止主 observer 與一次性 waiter（不包含路由監聽）
@@ -187,7 +254,7 @@ export function createObserverHandles(
 
 		// flush 掉最後一批 mutation，避免直接丟掉
 		if (pendingBatch.length) {
-			onMutation(pendingBatch.splice(0));
+			flushBatch(pendingBatch.splice(0));
 		}
 	}
 
@@ -224,12 +291,13 @@ export function createObserverHandles(
 
 		if (routeWatcher) routeWatcher.disconnect();
 		routeWatcher = new MutationObserver(() => {
-			if (location.href !== lastURL) {
-				lastURL = location.href;
-				log("URL mutated → rebind when container appears");
-				scheduleRebind();
-				onRouteChange?.();
-			}
+		if (location.href !== lastURL) {
+			lastURL = location.href;
+			log("URL mutated → rebind when container appears");
+			pendingRouteContainer = currentTarget;
+			scheduleRebind();
+			onRouteChange?.();
+		}
 		});
 		routeWatcher.observe(document, { childList: true, subtree: true });
 	}
@@ -239,6 +307,7 @@ export function createObserverHandles(
 		if (location.href !== lastURL) {
 			lastURL = location.href;
 			log("URL changed → rebind");
+			pendingRouteContainer = currentTarget;
 			scheduleRebind();
 			onRouteChange?.();
 		}

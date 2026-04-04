@@ -76,13 +76,13 @@ export const LONG_TASK = {
 
 	/* 進入/退出暫停的閾值 (Hysteresis) */
 	/** 進入暫停：rate >= 此值 (/s) */
-	ENTER_RATE: 1.0,
+	ENTER_RATE: 3,
 	/** 恢復繼續：rate < 此值 (/s) */
-	EXIT_RATE: 0.2,
+	EXIT_RATE: 1.5,
 	/** 進入暫停：平均耗時 >= 此值 (ms) */
-	ENTER_AVG: 90,
+	ENTER_AVG: 300,
 	/** 恢復繼續：平均耗時 < 此值 (ms) */
-	EXIT_AVG: 35,
+	EXIT_AVG: 150,
 
 	/** 最小暫停時間 (ms) - 防止頻繁切換 */
 	MIN_SUSPEND_MS: 2000,

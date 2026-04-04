@@ -142,6 +142,12 @@ export interface Trimmer {
 	showMoreMessages(): void;
 }
 
+/** Observer 抽出的 turn-level 變化集合 */
+export interface TurnMutationBatch {
+	added: Element[];
+	removed: Element[];
+}
+
 /**
  * UI 顯示 trim 結果的函式型別。
  * - res：trim 結果
@@ -177,6 +183,8 @@ export interface CreateTrimmerDeps {
 	deleteMsg: (el: Element) => void;
 	showResult: (res: TrimResult, auto: boolean) => void;
 	log: LogFn;
+	onTurnHidden?: (el: Element) => void;
+	onTurnRestored?: (el: Element) => void;
 }
 
 /**
@@ -190,6 +198,7 @@ export interface CreateObserverDeps {
 	selectors: Selectors;
 	log: LogFn;
 	onMutation: (muts: MutationRecord[]) => void;
+	onTurnMutations?: (batch: TurnMutationBatch) => void;
 	onInit: () => void;
 	onRouteChange?: () => void;
 }

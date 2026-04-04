@@ -15,18 +15,41 @@ function isChatPage(url?: string | null): boolean {
 	return !!url && CHAT_URL_RE.test(url);
 }
 
+function isIgnorableTabError(error: unknown): boolean {
+	const msg = error instanceof Error ? error.message : String(error ?? "");
+	return /No tab with id/i.test(msg);
+}
+
+async function swallowMissingTab<T>(op: () => Promise<T>) {
+	try {
+		return await op();
+	} catch (error) {
+		if (isIgnorableTabError(error)) return;
+		throw error;
+	}
+}
+
 async function setBadge(tabId: number, enabled: boolean) {
 	const look = enabled ? BADGE_ON : BADGE_OFF;
-	await chrome.action.setBadgeText({ tabId, text: look.text });
-	await chrome.action.setBadgeBackgroundColor({ tabId, color: look.color });
+	await swallowMissingTab(() =>
+		chrome.action.setBadgeText({ tabId, text: look.text })
+	);
+	await swallowMissingTab(() =>
+		chrome.action.setBadgeBackgroundColor({ tabId, color: look.color })
+	);
 	// 可選：部分瀏覽器支援文字色
 	try {
-		await chrome.action.setBadgeTextColor?.({ tabId, color: "#fff" });
+		await swallowMissingTab(() =>
+			chrome.action.setBadgeTextColor?.({ tabId, color: "#fff" }) ??
+			Promise.resolve()
+		);
 	} catch {}
 }
 
 async function clearBadge(tabId: number) {
-	await chrome.action.setBadgeText({ tabId, text: "" });
+	await swallowMissingTab(() =>
+		chrome.action.setBadgeText({ tabId, text: "" })
+	);
 }
 
 /**
@@ -105,7 +128,9 @@ chrome.action.onClicked.addListener(async (tab) => {
 	const next = !current;
 
 	await writeEnabledToTab(tab.id, next);
-	await setBadge(tab.id, next);
+	try {
+		await setBadge(tab.id, next);
+	} catch {}
 
 	if (next) {
 		try {
