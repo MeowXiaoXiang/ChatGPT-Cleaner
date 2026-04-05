@@ -13,7 +13,7 @@
 -   **trim-engine.ts**: Implements hide/restore/delete operations. Features adaptive batch deletion using idle callbacks with dynamic chunk sizing (6-20ms target).
 -   **observer.ts**: MutationObserver wrapper with route change detection, internal UI filtering, and rAF batching to coalesce mutations within a single frame.
 -   **ui.ts**: Pure UI components—floating ball control panel, toast notifications (with deduplication/accumulation), tooltip system, and "Show More" button.
--   **monitor.ts**: Performance monitoring panel with real-time KPI display, charts, and metrics. Pure display panel, always available via UI button.
+-   **monitor.ts**: Lightweight monitoring panel with real-time metrics. Pure display panel, opened from the in-page UI button.
 -   **dom-utils.ts**: Low-level DOM utilities for marking/unmarking hidden elements, safe selectors, and style injection.
 -   **idle-utils.ts**: `requestIdleCallback` ponyfill for cross-browser compatibility.
 -   **types.ts**: Centralized TypeScript definitions—no logic, just interfaces.

@@ -132,7 +132,7 @@
 │  │      dom-utils.ts     # DOM 工具函式（選擇器、樣式、標記）
 │  │      idle-utils.ts    # 空閒時間回調封裝，確保處理順暢
 │  │      main.ts          # 主程式進入點與流程控制
-│  │      monitor.ts       # 效能監控面板，即時指標與圖表監控
+│  │      monitor.ts       # 輕量監控面板，即時顯示核心指標
 │  │      observer.ts      # DOM 變更監聽器與路由偵測
 │  │      trim-engine.ts   # 核心訊息隱藏/刪除演算法
 │  │      types.ts         # 共享的 TypeScript 型別定義
