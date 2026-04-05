@@ -151,12 +151,6 @@ export const WAKE = {
 export const MONITOR = {
 	/** 刷新頻率 (ms) */
 	REFRESH_MS: 1000,
-	/** 圖表最大資料點數 */
-	MAX_POINTS: 240,
-	/** 圖表最小高度 (px) */
-	CHART_HEIGHT_MIN: 96,
-	/** 圖表最大高度 (px) */
-	CHART_HEIGHT_MAX: 240,
 } as const;
 
 /* ============================================================

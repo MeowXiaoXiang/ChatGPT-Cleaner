@@ -74,9 +74,6 @@ Current debug helpers:
 
 - `__ccxDebug.getMetrics()`
 - `__ccxDebug.forceTrim()`
-- `__ccxDebug.forceTrimNow()`
-- `__ccxDebug.showMonitor()`
-- `__ccxDebug.hideMonitor()`
 
 Always-available global helpers:
 

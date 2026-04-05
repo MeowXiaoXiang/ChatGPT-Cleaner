@@ -126,7 +126,7 @@ Logs appear as `[chat-cleaner] ...` in console.
 
 **Performance Monitor Panel**: Always available via the 📊 button in the UI panel. Shows real-time performance stats, trimmer state, and thresholds. The panel itself exposes no global API.
 
-**Debug Commands**: Only available when `ccx_debug=1`. Use `__ccxDebug.getMetrics()`, `__ccxDebug.forceTrim()`, `__ccxDebug.forceTrimNow()`, `__ccxDebug.showMonitor()`, and `__ccxDebug.hideMonitor()`.
+**Debug Commands**: Only available when `ccx_debug=1`. Use `__ccxDebug.getMetrics()` and `__ccxDebug.forceTrim()`.
 
 ### Testing Changes
 

@@ -11,7 +11,6 @@ import { MONITOR } from "./constants";
 
 export type MonitorApi = {
 	getMetrics: () => {
-		debounceDelay: number;
 		trimAvgMs: number;
 		longTaskRateEMA: number;
 		longTaskAvgMsEMA: number;
@@ -20,12 +19,10 @@ export type MonitorApi = {
 			exitRate: number;
 			enterAvg: number;
 			exitAvg: number;
-			minSuspendMs: number;
 		};
 		suspended: boolean;
-		maxKeep: number;
 		mode: "hide" | "delete";
-		stats: { domRemoved: number; hiddenNow: number; removedNow: number };
+		stats: { hiddenNow: number; removedNow: number };
 	};
 };
 

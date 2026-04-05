@@ -178,7 +178,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		visibleCount: 0,
 		hiddenCount: 0,
 		deleteModeRemovedCount: 0,
-		conversationKey: getConversationKey(),
 		tempSeq: 0,
 		elementKeys: new WeakMap<Element, string>(),
 	};
@@ -191,7 +190,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		inventory.turnHidden.clear();
 		inventory.visibleCount = 0;
 		inventory.hiddenCount = 0;
-		inventory.conversationKey = getConversationKey();
 		if (opts.resetDeleteCount) inventory.deleteModeRemovedCount = 0;
 		log(`inventory reset [${reason}]`);
 	}
@@ -386,11 +384,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				state.notify = next.notify;
 
 				if (oldMode !== state.mode) {
-					if (state.mode === "delete") {
-						inventory.deleteModeRemovedCount = 0;
-					} else {
-						inventory.deleteModeRemovedCount = 0;
-					}
+					inventory.deleteModeRemovedCount = 0;
 				}
 
 				localStorage.setItem("ccx_max_keep", String(state.maxKeep));
@@ -780,7 +774,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 
 	function getMonitorMetrics() {
 		return {
-			debounceDelay: debounce.delay,
 			trimAvgMs: +debounce.trimAvgMs.toFixed(2),
 
 			suspended: stormGate.suspended,
@@ -791,13 +784,10 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				exitRate: LT_EXIT_RATE,
 				enterAvg: LT_ENTER_AVG,
 				exitAvg: LT_EXIT_AVG,
-				minSuspendMs: LT_MIN_SUSP_MS,
 			},
 
-			maxKeep: state.maxKeep,
 			mode: state.mode,
 			stats: {
-				...stats,
 				hiddenNow: inventory.hiddenCount,
 				removedNow: inventory.deleteModeRemovedCount,
 			},
@@ -805,10 +795,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	}
 
 	function forceTrim() {
-		scheduleTrim("manual", { manual: true });
-	}
-
-	function forceTrimNow() {
 		try {
 			cancelScheduledTrim();
 			const t0 = performance.now();
@@ -819,12 +805,12 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				syncHideBaseline("manualNow");
 			}
 			console.log(
-				"[chat-cleaner] forceTrimNow:",
+				"[chat-cleaner] forceTrim:",
 				res,
 				`${(t1 - t0).toFixed(2)}ms`
 			);
 		} catch (e) {
-			console.error("[chat-cleaner] forceTrimNow failed", e);
+			console.error("[chat-cleaner] forceTrim failed", e);
 		}
 	}
 
@@ -843,9 +829,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			(window as any).__ccxDebug = {
 				getMetrics: getMonitorMetrics,
 				forceTrim,
-				forceTrimNow,
-				showMonitor: () => __ccxMonitorCtl?.showPanel(),
-				hideMonitor: () => __ccxMonitorCtl?.hidePanel(),
 			};
 			(globalThis as any).__ccxDebug = (window as any).__ccxDebug;
 			console.log(
@@ -855,9 +838,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 					"▶ Debug Commands:",
 					"    __ccxDebug.getMetrics()",
 					"    __ccxDebug.forceTrim()",
-					"    __ccxDebug.forceTrimNow()",
-					"    __ccxDebug.showMonitor()",
-					"    __ccxDebug.hideMonitor()",
 				].join("\n"),
 				"color:#93c5fd;font-weight:700;"
 			);
