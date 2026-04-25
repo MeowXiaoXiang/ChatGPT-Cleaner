@@ -29,8 +29,13 @@ import {
 } from "./trim-engine";
 import { requestIdle, cancelIdle, IdleHandle } from "./idle-utils";
 import type { DebounceState, Mode, Selectors, Settings, Stats } from "./types";
-import { mountMonitor } from "./monitor";
-import type { MonitorController, MonitorApi } from "./monitor";
+import {
+	clearDebugConsole,
+	mountDebugConsole,
+	type DebugConsoleController,
+	type DebugMetrics,
+	type ForceTrimDebugResult,
+} from "./debug";
 import {
 	DEFAULT_MAX_KEEP,
 	DEFAULT_MODE,
@@ -425,17 +430,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				);
 			}
 		},
-		onMonitor: () => {
-			const tryOpen = () => {
-				if (__ccxMonitorCtl?.showPanel) {
-					__ccxMonitorCtl.showPanel();
-					return true;
-				}
-				return false;
-			};
-			if (tryOpen()) return;
-			setTimeout(() => tryOpen() || setTimeout(tryOpen, 350), 50);
-		},
 	});
 
 	const deleteMsg = createDeleter(log, stats, trackTurnDeleted);
@@ -772,10 +766,14 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		bucketTimer = setInterval(flushBuckets, BUCKET_MS);
 	}
 
-	function getMonitorMetrics() {
+	function getDebugMetrics(): DebugMetrics {
 		return {
+			mode: state.mode,
+			maxKeep: state.maxKeep,
+			visibleCount: inventory.visibleCount,
+			hiddenCount: inventory.hiddenCount,
+			removedCount: inventory.deleteModeRemovedCount,
 			trimAvgMs: +debounce.trimAvgMs.toFixed(2),
-
 			suspended: stormGate.suspended,
 			longTaskRateEMA: +ltRateEMA.toFixed(2),
 			longTaskAvgMsEMA: +ltAvgDurEMA.toFixed(1),
@@ -785,66 +783,36 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				enterAvg: LT_ENTER_AVG,
 				exitAvg: LT_EXIT_AVG,
 			},
-
-			mode: state.mode,
-			stats: {
-				hiddenNow: inventory.hiddenCount,
-				removedNow: inventory.deleteModeRemovedCount,
-			},
 		};
 	}
 
-	function forceTrim() {
+	function forceTrim(): ForceTrimDebugResult | null {
 		try {
 			cancelScheduledTrim();
 			const t0 = performance.now();
 			const res = trimmer.trimMessages();
 			const t1 = performance.now();
+			const ms = +(t1 - t0).toFixed(2);
 			if (state.mode === "hide") {
 				showMore.update();
 				syncHideBaseline("manualNow");
 			}
-			console.log(
-				"[chat-cleaner] forceTrim:",
-				res,
-				`${(t1 - t0).toFixed(2)}ms`
-			);
+			console.log("[chat-cleaner] forceTrim:", res, `${ms}ms`);
+			return { result: res, ms };
 		} catch (e) {
 			console.error("[chat-cleaner] forceTrim failed", e);
+			return null;
 		}
 	}
 
-	// Monitor Panel：僅負責顯示，不暴露全域 API
-	let __ccxMonitorCtl: MonitorController | null = null;
-
-	// 總是啟用 Monitor Panel
-	{
-		const api: MonitorApi = {
-			getMetrics: getMonitorMetrics,
-		};
-
-		__ccxMonitorCtl = mountMonitor(api);
-
-		if (DEBUG) {
-			(window as any).__ccxDebug = {
-				getMetrics: getMonitorMetrics,
-				forceTrim,
-			};
-			(globalThis as any).__ccxDebug = (window as any).__ccxDebug;
-			console.log(
-				[
-					"%cChat Cleaner – Console Logging Enabled",
-					"▶ In DevTools Console, select the Content script context (not top).",
-					"▶ Debug Commands:",
-					"    __ccxDebug.getMetrics()",
-					"    __ccxDebug.forceTrim()",
-				].join("\n"),
-				"color:#93c5fd;font-weight:700;"
-			);
-		} else {
-			delete (window as any).__ccxDebug;
-			delete (globalThis as any).__ccxDebug;
-		}
+	let debugConsole: DebugConsoleController | null = null;
+	if (DEBUG) {
+		debugConsole = mountDebugConsole({
+			getMetrics: getDebugMetrics,
+			forceTrim,
+		});
+	} else {
+		clearDebugConsole();
 	}
 
 	// 可程式化停止：釋放 observer / 註冊事件，乾淨卸載插件
@@ -887,15 +855,11 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			showMore.destroy();
 
 			try {
-				__ccxMonitorCtl?.destroy();
-				__ccxMonitorCtl = null;
+				debugConsole?.destroy();
+				debugConsole = null;
 			} catch {}
+			clearDebugConsole();
 
-			delete (window as any).__ccxDebug;
-			delete (globalThis as any).__ccxDebug;
-
-			document.getElementById("ccx-monitor")?.remove?.();
-			document.getElementById("ccx-monitor-tip")?.remove?.();
 			document.querySelector(".ccx-ui")?.remove?.();
 		} catch {}
 

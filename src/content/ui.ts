@@ -259,8 +259,6 @@ export function mountUI(opts: {
 	T: I18nFn;
 	initial: { maxKeep: number; mode: Mode; notify: boolean };
 	onApply: (next: ApplyPayload) => void;
-	/** 點擊 Monitor 按鈕時呼叫（由 main.ts 傳遞 showPanel） */
-	onMonitor?: () => void;
 }) {
 	const { T, initial, onApply } = opts;
 
@@ -389,34 +387,6 @@ export function mountUI(opts: {
 	const notifyI = root.querySelector("#ccx-notify") as HTMLInputElement;
 	const closeBtn = root.querySelector(".ccx-close") as HTMLButtonElement;
 	const applyBtn = root.querySelector("#ccx-apply") as HTMLButtonElement;
-
-	// === MONITOR 按鈕（永遠顯示；打開效能監控面板）===
-	let monitorBtn: HTMLButtonElement | null = null;
-	const actionsEl = root.querySelector(
-		".ccx-actions"
-	) as HTMLDivElement | null;
-
-	if (actionsEl) {
-		monitorBtn = document.createElement("button");
-		monitorBtn.setAttribute("type", "button");
-		monitorBtn.setAttribute("aria-label", "Open Performance Monitor");
-		monitorBtn.className = "ccx-monitor";
-		monitorBtn.textContent = "📊";
-
-		monitorBtn.onclick = () => {
-			try {
-				opts.onMonitor?.();
-			} catch {}
-		};
-
-		// 插在 ✖ 的左邊
-		const closeBtn = actionsEl.querySelector(".ccx-close");
-		if (closeBtn) {
-			actionsEl.insertBefore(monitorBtn, closeBtn);
-		} else {
-			actionsEl.appendChild(monitorBtn);
-		}
-	}
 
 	// 防止拖曳出現幽靈圖像
 	ball.setAttribute("draggable", "false");

@@ -69,8 +69,7 @@
 	gap: 6px;
 }
 
-.ccx-close,
-.ccx-monitor {
+.ccx-close {
 	background: transparent;
 	border: 1px solid transparent; /* 先保留邊框，避免跳動 */
 	border-radius: 6px;
@@ -85,8 +84,7 @@
 	transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 
-.ccx-close:hover,
-.ccx-monitor:hover {
+.ccx-close:hover {
 	color: light-dark(#333333, #ddd);
 	border-color: light-dark(#aaa, #555); /* hover 時顯示出邊框 */
 	background: light-dark(#f0f0f0, #444); /* 淺背景／深背景 */

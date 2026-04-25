@@ -145,15 +145,6 @@ export const WAKE = {
 } as const;
 
 /* ============================================================
-    MONITOR PANEL (監控面板)
-   ============================================================ */
-
-export const MONITOR = {
-	/** 刷新頻率 (ms) */
-	REFRESH_MS: 1000,
-} as const;
-
-/* ============================================================
     DOM SELECTORS (DOM 選擇器)
    ============================================================ */
 
@@ -181,7 +172,5 @@ export const UI_SELECTORS = {
 		".ccx-ui",
 		".ccx-toast-container",
 		".ccx-showmore-wrap",
-		"#ccx-monitor",
-		"#ccx-monitor *",
 	],
 } as const;
