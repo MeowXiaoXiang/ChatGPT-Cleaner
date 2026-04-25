@@ -110,20 +110,25 @@ export function mountDebugConsole(opts: {
 
 	function report(): DebugMetrics {
 		const metrics = opts.getMetrics();
-		const summary = {
-			mode: metrics.mode,
-			maxKeep: metrics.maxKeep,
-			visible: metrics.visibleCount,
-			hidden: metrics.hiddenCount,
-			removed: metrics.removedCount,
-			trimAvgMs: metrics.trimAvgMs,
-			suspended: metrics.suspended,
-			longTaskRate: metrics.longTaskRateEMA,
-			longTaskAvgMs: metrics.longTaskAvgMsEMA,
-		};
 
 		console.groupCollapsed("[chat-cleaner] debug report");
-		console.table(summary);
+		console.table({
+			status: {
+				mode: metrics.mode,
+				maxKeep: metrics.maxKeep,
+				suspended: metrics.suspended,
+			},
+			counts: {
+				visible: metrics.visibleCount,
+				hidden: metrics.hiddenCount,
+				removed: metrics.removedCount,
+			},
+			performance: {
+				trimAvgMs: metrics.trimAvgMs,
+				longTaskRate: metrics.longTaskRateEMA,
+				longTaskAvgMs: metrics.longTaskAvgMsEMA,
+			},
+		});
 		console.log("raw metrics", metrics);
 		console.groupEnd();
 
@@ -138,14 +143,18 @@ export function mountDebugConsole(opts: {
 			const report = opts.dumpInventory();
 			console.groupCollapsed("[chat-cleaner] inventory report");
 			console.table({
-				knownTurnCount: report.knownTurnCount,
-				turnHiddenCount: report.turnHiddenCount,
-				visibleCount: report.visibleCount,
-				hiddenCount: report.hiddenCount,
-				removedCount: report.removedCount,
-				hiddenMapTrueCount: report.hiddenMapTrueCount,
-				hiddenMapFalseCount: report.hiddenMapFalseCount,
-				countsConsistent: report.countsConsistent,
+				integrity: {
+					knownTurnCount: report.knownTurnCount,
+					turnHiddenCount: report.turnHiddenCount,
+					hiddenMapTrueCount: report.hiddenMapTrueCount,
+					hiddenMapFalseCount: report.hiddenMapFalseCount,
+					countsConsistent: report.countsConsistent,
+				},
+				runtimeCounts: {
+					visibleCount: report.visibleCount,
+					hiddenCount: report.hiddenCount,
+					removedCount: report.removedCount,
+				},
 			});
 			console.log("sample keys", report.sampleKeys);
 			console.log("raw inventory report", report);
@@ -156,11 +165,15 @@ export function mountDebugConsole(opts: {
 			const report = opts.explainSelectors();
 			console.groupCollapsed("[chat-cleaner] selector report");
 			console.table({
-				primaryCount: report.primaryCount,
-				fallbackCount: report.fallbackCount,
-				combinedCount: report.combinedCount,
-				hiddenMarkedCount: report.hiddenMarkedCount,
-				visibleCount: report.visibleCount,
+				matches: {
+					primaryCount: report.primaryCount,
+					fallbackCount: report.fallbackCount,
+					combinedCount: report.combinedCount,
+					hiddenMarkedCount: report.hiddenMarkedCount,
+				},
+				derived: {
+					visibleCount: report.visibleCount,
+				},
 			});
 			console.table(report.samples);
 			console.log("raw selector report", report);
