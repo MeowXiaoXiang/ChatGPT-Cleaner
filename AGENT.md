@@ -33,12 +33,12 @@ Build output goes to `dist/`. Load the unpacked extension from `dist/`, not `src
 
 The main logic lives in `src/content/`.
 
-- `main.ts`: Runtime owner. Wires together observers, trimmer, UI, storm gate, monitor, and debug hooks.
-- `constants.ts`: Central place for tunable parameters such as keep count, debounce, long-task gate, batch sizing, and monitor limits.
+- `main.ts`: Runtime owner. Wires together observers, trimmer, UI, storm gate, and debug console setup.
+- `constants.ts`: Central place for tunable parameters such as keep count, debounce, long-task gate, and batch sizing.
 - `trim-engine.ts`: Core hide / restore / delete behavior.
 - `observer.ts`: MutationObserver and route-change handling for ChatGPT's SPA behavior.
 - `ui.ts`: Floating control panel, toast UI, and "Show previous" behavior.
-- `monitor.ts`: Pure display panel for runtime metrics. It is not the owner of debug commands.
+- `debug.ts`: Debug-only console API exposed when `ccx_debug=1`.
 - `dom-utils.ts`, `idle-utils.ts`, `types.ts`: Supporting utilities and shared types.
 
 Other important files:
@@ -63,17 +63,21 @@ Performance protection is controlled in `main.ts` using:
 
 Tune behavior through `constants.ts` first before changing logic.
 
-## Current Debug / Monitor Design
+## Current Debug Design
 
-- The Monitor panel is a UI-only diagnostics surface opened from the in-page button.
-- The Monitor panel does not expose a global API.
-- Debug commands are owned by `main.ts`.
-- When `localStorage.ccx_debug === "1"`, `main.ts` exposes `__ccxDebug` in the page context.
+- Runtime diagnostics are console-only and are not exposed in the normal product UI.
+- Debug command registration is owned by `debug.ts`; `main.ts` supplies runtime metrics and actions.
+- When `localStorage.ccx_debug === "1"`, the content script exposes `__ccxDebug` in the console context.
 
 Current debug helpers:
 
 - `__ccxDebug.getMetrics()`
+- `__ccxDebug.report()`
 - `__ccxDebug.forceTrim()`
+- `__ccxDebug.dumpInventory()`
+- `__ccxDebug.explainSelectors()`
+- `__ccxDebug.watchMetrics(seconds?)`
+- `__ccxDebug.stopWatch()`
 
 Always-available global helpers:
 
@@ -83,8 +87,8 @@ Always-available global helpers:
 ## Project Conventions
 
 - Prefer adjusting values in `constants.ts` before changing scheduling logic.
-- Treat `main.ts` as the source of truth for lifecycle, debug ownership, and runtime orchestration.
-- Keep `monitor.ts` focused on display concerns.
+- Treat `main.ts` as the source of truth for lifecycle and runtime orchestration.
+- Keep debug-only command registration in `debug.ts`; do not add debug DOM panels to the normal UI.
 - Keep `types.ts` logic-free.
 - Do not edit `dist/` by hand.
 - If releasing a new version, update both `package.json` and `src/manifest.json`, then rebuild.
@@ -93,5 +97,5 @@ Always-available global helpers:
 
 - This project has been fairly stable against ChatGPT DOM changes, so avoid speculative rewrites.
 - Selector changes should be conservative and validated against real ChatGPT pages.
-- Monitor additions should be restrained; the panel is meant to stay lightweight.
+- Debug additions should stay console-only unless a separate plan explicitly introduces a debug page.
 - If something can be fixed by simplifying ownership or reducing overlap, prefer that over adding new layers.

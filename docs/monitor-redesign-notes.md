@@ -1,5 +1,9 @@
 # Monitor Redesign Notes
 
+> Archived note: the in-page monitor panel was removed in the v2 cleanup track.
+> Runtime diagnostics now live behind the console-only `__ccxDebug` API.
+> Keep this file only as historical design context.
+
 ## Goal
 
 Simplify the current monitor panel into a lightweight status panel.
