@@ -35,6 +35,9 @@ import {
 	type DebugConsoleController,
 	type DebugMetrics,
 	type ForceTrimDebugResult,
+	type InventoryDebugReport,
+	type SelectorDebugReport,
+	sampleElements,
 } from "./debug";
 import {
 	DEFAULT_MAX_KEEP,
@@ -805,11 +808,70 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		}
 	}
 
+	function dumpInventory(): InventoryDebugReport {
+		let hiddenMapTrueCount = 0;
+		let hiddenMapFalseCount = 0;
+		for (const hidden of inventory.turnHidden.values()) {
+			if (hidden) hiddenMapTrueCount++;
+			else hiddenMapFalseCount++;
+		}
+
+		return {
+			knownTurnCount: inventory.knownTurnIds.size,
+			turnHiddenCount: inventory.turnHidden.size,
+			visibleCount: inventory.visibleCount,
+			hiddenCount: inventory.hiddenCount,
+			removedCount: inventory.deleteModeRemovedCount,
+			hiddenMapTrueCount,
+			hiddenMapFalseCount,
+			countsConsistent:
+				inventory.knownTurnIds.size === inventory.turnHidden.size &&
+				inventory.visibleCount === hiddenMapFalseCount &&
+				inventory.hiddenCount === hiddenMapTrueCount,
+			sampleKeys: Array.from(inventory.knownTurnIds).slice(0, 8),
+		};
+	}
+
+	function explainSelectors(): SelectorDebugReport {
+		const primary = Array.from(
+			document.querySelectorAll<Element>(SELECTORS.LIST)
+		);
+		const fallback = Array.from(
+			document.querySelectorAll<Element>(SEL.FALLBACK)
+		);
+		const combined = Array.from(
+			document.querySelectorAll<Element>(SELECTORS.ALL)
+		);
+
+		const hiddenMarkedCount = combined.reduce(
+			(count, el) => count + (isMarkedHidden(el) ? 1 : 0),
+			0
+		);
+
+		return {
+			primarySelector: SELECTORS.LIST,
+			fallbackSelector: SEL.FALLBACK,
+			combinedSelector: SELECTORS.ALL,
+			primaryCount: primary.length,
+			fallbackCount: fallback.length,
+			combinedCount: combined.length,
+			hiddenMarkedCount,
+			visibleCount: combined.length - hiddenMarkedCount,
+			samples: sampleElements([
+				...primary.slice(0, 4).map((el) => ({ label: "primary", el })),
+				...fallback.slice(0, 4).map((el) => ({ label: "fallback", el })),
+				...combined.slice(0, 4).map((el) => ({ label: "combined", el })),
+			]),
+		};
+	}
+
 	let debugConsole: DebugConsoleController | null = null;
 	if (DEBUG) {
 		debugConsole = mountDebugConsole({
 			getMetrics: getDebugMetrics,
 			forceTrim,
+			dumpInventory,
+			explainSelectors,
 		});
 	} else {
 		clearDebugConsole();
