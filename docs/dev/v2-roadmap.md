@@ -55,8 +55,8 @@ Completed:
 
 Acceptance baseline:
 
-- `yarn typecheck` passes.
-- `yarn build` passes.
+- `pnpm typecheck` passes.
+- `pnpm build` passes.
 - Manual debug API smoke test passes on ChatGPT.
 
 ## Phase 1 - Selector Stability Baseline

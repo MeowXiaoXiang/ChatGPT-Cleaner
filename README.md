@@ -64,22 +64,22 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ## Installation (Manual Loading)
 
-1. Get the code and install dependencies (Yarn 4 via Corepack + PnP)
+1. Get the code and install dependencies (pnpm via Corepack)
 
     ```bash
-    git clone https://github.com/MeowXiaoXiang/ChatGPT-Cleaner.git
-    cd ChatGPT-Cleaner
+    git clone https://github.com/MeowXiaoXiang/ChatGPT-Message-Cleaner.git
+    cd ChatGPT-Message-Cleaner
 
-    # Enable Corepack and activate the Yarn version pinned by this repo
+    # Enable Corepack and install the pnpm version pinned by this repo
     corepack enable
-    corepack prepare yarn@4.12.0 --activate
-    yarn install
+    corepack install
+    pnpm install
     ```
 
 2. Build (outputs to dist/)
 
     ```bash
-    yarn build
+    pnpm build
     ```
 
 3. Load in Chrome (Extensions → Developer mode → Load unpacked)
@@ -88,11 +88,9 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
     * Enable "Developer mode"
     * Click "Load unpacked", select the `dist/` folder
 
-> This project officially uses Yarn 4 + Corepack and commits `yarn.lock`. The install flow uses Plug'n'Play (PnP), so `node_modules/` is not required.
+> This project officially uses pnpm 10 + Corepack and commits `pnpm-lock.yaml`.
 >
-> `postinstall` will try to generate the Yarn VS Code SDK automatically. If TypeScript in VS Code still shows missing globals or unresolved modules, run `TypeScript: Select TypeScript Version` and switch to `Use Workspace Version`.
->
-> For development, use `yarn dev` to enter watch mode (automatically rebuilds and copies static resources to dist).
+> For development, use `pnpm dev` to enter watch mode (automatically rebuilds and copies static resources to dist).
 
 ---
 
@@ -108,8 +106,6 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ```text
 │  .gitignore              # Git ignore rules
-│  .pnp.cjs                # Yarn Plug'n'Play runtime map
-│  .pnp.loader.mjs         # Yarn Plug'n'Play ESM loader
 │  esbuild.config.mjs      # Esbuild bundling configuration
 │  LICENSE                 # License (MIT)
 │  package.json            # Package and script definitions
@@ -117,7 +113,6 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 │  tsconfig.json           # TypeScript compilation settings
 │
 ├─scripts                  # Helper scripts
-│      postinstall.js      # Post-install VS Code SDK setup for Yarn/PnP
 │      zip.js              # Package dist/ into zip
 │
 ├─src
@@ -167,16 +162,16 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ```bash
 # Type checking
-yarn typecheck
+pnpm typecheck
 
 # Development mode (watch)
-yarn dev
+pnpm dev
 
 # Generate release files (dist/)
-yarn build
+pnpm build
 
 # Compress and package dist as zip
-yarn zip
+pnpm zip
 ```
 
 ## Privacy Policy

@@ -25,7 +25,7 @@ async function main() {
 
 	// 確認 dist 存在
 	if (!(await exists(dist))) {
-		console.error("[zip] dist/ not found. Run `yarn build` first.");
+		console.error("[zip] dist/ not found. Run `pnpm build` first.");
 		process.exit(1);
 	}
 

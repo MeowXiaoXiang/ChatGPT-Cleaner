@@ -14,17 +14,17 @@ The extension operates only on the frontend DOM. It does not touch account data,
 - TypeScript
 - Chrome Extension Manifest v3
 - esbuild
-- Yarn 4 + Corepack + Plug'n'Play (PnP)
+- pnpm 10 + Corepack
 - Node.js 20+
 
 Primary commands:
 
 ```bash
-yarn install
-yarn typecheck
-yarn build
-yarn dev
-yarn zip
+pnpm install
+pnpm typecheck
+pnpm build
+pnpm dev
+pnpm zip
 ```
 
 Build output goes to `dist/`. Load the unpacked extension from `dist/`, not `src/`.

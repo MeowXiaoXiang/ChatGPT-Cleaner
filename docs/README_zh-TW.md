@@ -65,22 +65,22 @@
 
 ## 安裝（手動載入）
 
-1. 取得程式碼並安裝依賴（Yarn 4 + Corepack + PnP）
+1. 取得程式碼並安裝依賴（pnpm + Corepack）
 
     ```bash
-    git clone https://github.com/MeowXiaoXiang/ChatGPT-Cleaner.git
-    cd ChatGPT-Cleaner
+    git clone https://github.com/MeowXiaoXiang/ChatGPT-Message-Cleaner.git
+    cd ChatGPT-Message-Cleaner
 
-    # 啟用 Corepack，並使用本專案固定的 Yarn 版本
+    # 啟用 Corepack，並安裝本專案固定的 pnpm 版本
     corepack enable
-    corepack prepare yarn@4.12.0 --activate
-    yarn install
+    corepack install
+    pnpm install
     ```
 
 2. 建置（產出 dist/）
 
     ```bash
-    yarn build
+    pnpm build
     ```
 
 3. 於 Chrome 載入（擴充功能 → 開發人員模式 → 載入未封裝項目）
@@ -89,11 +89,9 @@
     * 開啟「開發人員模式」
     * 點擊「載入未封裝項目」，選擇 `dist/` 資料夾
 
-> 本專案已固定使用 Yarn 4，並提交 `yarn.lock`；請透過 Corepack 啟用對應版本，避免 Yarn 版本不一致。
+> 本專案已固定使用 pnpm 10，並提交 `pnpm-lock.yaml`；請透過 Corepack 啟用對應版本，避免 pnpm 版本不一致。
 >
-> 安裝流程使用 Plug'n'Play（PnP），因此不需要 `node_modules/`。`postinstall` 也會嘗試自動產生 Yarn 的 VS Code SDK；若 VS Code 仍顯示找不到全域型別或模組，請執行 `TypeScript: Select TypeScript Version` 並切換到 `Use Workspace Version`。
->
-> 開發模式可使用 `yarn dev` 進入 watch 模式（會自動重建並複製靜態資源到 dist）。
+> 開發模式可使用 `pnpm dev` 進入 watch 模式（會自動重建並複製靜態資源到 dist）。
 
 ---
 
@@ -109,8 +107,6 @@
 
 ```text
 │  .gitignore              # Git 忽略規則
-│  .pnp.cjs                # Yarn Plug'n'Play 執行對映
-│  .pnp.loader.mjs         # Yarn Plug'n'Play 的 ESM loader
 │  esbuild.config.mjs      # Esbuild 打包設定
 │  LICENSE                 # 授權 (MIT)
 │  package.json            # 套件與腳本定義
@@ -118,7 +114,6 @@
 │  tsconfig.json           # TypeScript 編譯設定
 │
 ├─scripts                  # 輔助腳本
-│      postinstall.js      # 安裝後設定 Yarn/PnP 的 VS Code SDK
 │      zip.js              # 打包 dist/ 成 zip
 │
 ├─src
@@ -168,16 +163,16 @@
 
 ```bash
 # 型別檢查
-yarn typecheck
+pnpm typecheck
 
 # 開發模式（watch）
-yarn dev
+pnpm dev
 
 # 產生發佈檔（dist/）
-yarn build
+pnpm build
 
 # 壓縮打包 dist 為 zip
-yarn zip
+pnpm zip
 ```
 
 ## 隱私權政策

@@ -3,7 +3,7 @@
     "version": "1.1.1",
     "description": "ChatGPT 訊息清理小工具",
     "type": "module",
-    "packageManager": "yarn@4.12.0",
+    "packageManager": "pnpm@10.33.2",
     "engines": {
         "node": ">=20.0.0"
     },
@@ -11,14 +11,13 @@
     "scripts": {
         "clean": "rimraf dist",
         "typecheck": "tsc --noEmit && echo Type check passed",
-        "build": "yarn clean && yarn typecheck && cross-env NODE_ENV=production node esbuild.config.mjs",
+        "build": "pnpm clean && pnpm typecheck && cross-env NODE_ENV=production node esbuild.config.mjs",
         "dev": "cross-env NODE_ENV=development WATCH=1 node esbuild.config.mjs",
-        "zip": "node scripts/zip.js",
-        "postinstall": "node scripts/postinstall.js"
+        "zip": "node scripts/zip.js"
     },
     "devDependencies": {
         "@types/archiver": "^7.0.0",
-        "@types/chrome": "0.1.38",
+        "@types/chrome": "0.1.40",
         "archiver": "^7.0.1",
         "cross-env": "10.1.0",
         "esbuild": "0.27.4",
