@@ -22,6 +22,11 @@ import { createI18n, createToast, mountUI, mountShowMore } from "./ui";
 import { createObserverHandles } from "./observer";
 import { createTurnInventory } from "./turn-inventory";
 import {
+	persistSettings,
+	readRuntimeFlags,
+	readSettings,
+} from "./settings-store";
+import {
 	createDeleter,
 	createTrimmer,
 	batchDelete,
@@ -29,7 +34,7 @@ import {
 	restoreMsg,
 } from "./trim-engine";
 import { requestIdle, cancelIdle, IdleHandle } from "./idle-utils";
-import type { DebounceState, Mode, Selectors, Settings, Stats } from "./types";
+import type { DebounceState, Selectors, Settings, Stats } from "./types";
 import {
 	clearDebugConsole,
 	mountDebugConsole,
@@ -41,8 +46,6 @@ import {
 	sampleElements,
 } from "./debug";
 import {
-	DEFAULT_MAX_KEEP,
-	DEFAULT_MODE,
 	DEBOUNCE,
 	TRIM_THRESHOLD,
 	LONG_TASK,
@@ -58,12 +61,12 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 
 (() => {
 	// ---- flags ----
-	const DEBUG = localStorage.getItem("ccx_debug") === "1";
+	const flags = readRuntimeFlags();
+	const DEBUG = flags.debug;
 	const log = (...args: unknown[]) =>
 		DEBUG && console.log("[chat-cleaner]", ...args);
 
-	const ENABLED = localStorage.getItem("ccx_enabled") !== "0";
-	if (!ENABLED) {
+	if (!flags.enabled) {
 		log("disabled via ccx_enabled=0");
 		return;
 	}
@@ -88,16 +91,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	};
 
 	// ---- settings / state ----
-	const state: Settings = {
-		maxKeep: Math.max(
-			1,
-			parseInt(localStorage.getItem("ccx_max_keep") || String(DEFAULT_MAX_KEEP), 10)
-		),
-		notify: localStorage.getItem("ccx_notify") !== "0",
-		mode: (localStorage.getItem("ccx_mode") as Mode) || DEFAULT_MODE,
-		enabled: true,
-		debug: DEBUG,
-	};
+	const state: Settings = readSettings();
 	const stats: Stats = { domRemoved: 0 };
 
 	// ---- 調速參數（從 constants.ts 導入）----
@@ -243,17 +237,14 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			try {
 				const oldMode = state.mode;
 
-				state.maxKeep = next.maxKeep;
-				state.mode = next.mode;
-				state.notify = next.notify;
+				const persisted = persistSettings(next);
+				state.maxKeep = persisted.maxKeep;
+				state.mode = persisted.mode;
+				state.notify = persisted.notify;
 
 				if (oldMode !== state.mode) {
 					inventory.resetRemovedCount();
 				}
-
-				localStorage.setItem("ccx_max_keep", String(state.maxKeep));
-				localStorage.setItem("ccx_mode", state.mode);
-				localStorage.setItem("ccx_notify", state.notify ? "1" : "0");
 
 				// hide → delete：先清既有「已隱藏」節點，保持狀態單一
 				if (oldMode === "hide" && state.mode === "delete") {
