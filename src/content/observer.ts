@@ -1,18 +1,15 @@
 // src/content/observer.ts
 // Chat Cleaner - DOM Observer
 // ------------------------------------------------------------
-// 功能職責 (Responsibilities):
-//   - 自動尋找訊息容器並附掛 MutationObserver
-//   - 偵測路由變化（history/hash/DOM URL 變動）並自動重綁
-//   - 過濾本插件內部 UI 的變動，避免誤觸發上游排程
-//   - 使用 requestAnimationFrame 合批，將同一畫格的多筆 mutation 一次回傳
+// 職責:
+//   - 尋找 ChatGPT 訊息容器並附掛 MutationObserver。
+//   - 偵測 SPA route 變化並重新綁定容器。
+//   - 過濾 extension UI 造成的 mutation，避免誤觸發上游排程。
 //
-// 設計要點 (Design Notes):
+// 邊界:
 //   - 一律使用 childList + subtree 監看，避免 wrapper 導致漏事件
-//   - 若訊息容器在同一 URL 下被替換，會自我偵測並重新綁定
-//   - MutationRecord 過濾內部 UI 變動，降低上游負擔
-//   - 路由 rebind 採 80ms 輕節流，避免連續觸發
-//   - rAF 合批，避免高頻 mutation 時過度觸發上游邏輯
+//   - 使用 rAF 合批，避免高頻 mutation 時過度觸發上游邏輯
+//   - 不直接執行 trim，只回報 mutation 與 route lifecycle
 // ------------------------------------------------------------
 
 import type {

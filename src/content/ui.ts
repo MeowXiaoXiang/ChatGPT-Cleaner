@@ -1,24 +1,16 @@
 // src/content/ui.ts
-// Chat Cleaner - UI Module
+// Chat Cleaner - UI
 // ------------------------------------------------------------
-// 功能職責 (Responsibilities):
-//   - 提供純 UI 元件與互動，避免業務邏輯耦合
-//   - i18n、Toast、Tooltip 與控制面板掛載
+// 職責:
+//   - 掛載 floating panel、toast、tooltip 與 Show More 控制。
+//   - 透過 callbacks 回拋使用者操作，不直接執行 trim。
 //
-// 主要職能 (Key Functions):
-//   - createI18n：薄封裝 chrome.i18n
-//   - createToast：Toast 合併/累加，支援刪除/隱藏/成功/錯誤樣式
-//   - mountUI：懸浮球 + 控制面板，透過 onApply 回拋設定
-//   - initTooltips：具現 .ccx-hint[data-tip]
-//   - mountShowMore：插入「顯示更多」按鈕
-//
-// 設計要點 (Design Notes):
-import { TOAST, SHOW_MORE } from "./constants";
-//   - Toast：最多顯示 4 條，重複訊息會累加數字與次數
-//   - Tooltip：僅生成一次，避免重複插入
-//   - UI 掛載有 guard（MutationObserver），防止被 DOM 移除
+// 邊界:
+//   - Toast 只負責顯示與合併訊息。
+//   - Panel 只回傳設定，不持有 runtime 狀態。
 // ------------------------------------------------------------
 
+import { TOAST, SHOW_MORE } from "./constants";
 import { CLS, getHiddenBySelector, getVisibleBySelector } from "./dom-utils";
 import type {
 	I18nFn,

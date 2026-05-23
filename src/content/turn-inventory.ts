@@ -1,3 +1,14 @@
+// src/content/turn-inventory.ts
+// Chat Cleaner - Turn Inventory
+// ------------------------------------------------------------
+// 職責:
+//   - 追蹤已知 turn、hidden 狀態、visible/hidden count 與 delete removed count。
+//   - 提供 observer/trimmer/debug 共用的 inventory snapshot 與 report。
+//
+// 邊界:
+//   - 不決定 trim 策略，只維護目前 DOM inventory 狀態。
+// ------------------------------------------------------------
+
 import { isMarkedHidden } from "./dom-utils";
 import type { LogFn } from "./types";
 

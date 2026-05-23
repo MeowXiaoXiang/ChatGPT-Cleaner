@@ -1,17 +1,12 @@
 // src/content/idle-utils.ts
 // Chat Cleaner - Idle Utilities
 // ------------------------------------------------------------
-// 功能職責 (Responsibilities):
-//   - 封裝 requestIdleCallback / cancelIdle，統一跨瀏覽器行為
+// 職責:
+//   - 封裝 requestIdleCallback / cancelIdle。
+//   - 在缺少原生 API 的環境提供 setTimeout fallback。
 //
-// 主要職能 (Key Functions):
-//   - requestIdle：在空閒時間執行任務，避免 UI 卡頓
-//   - cancelIdle：取消已排程的 Idle 任務
-//
-// 設計要點 (Design Notes):
-//   - Chromium 原生支援 → 直接使用
-//   - 其他環境 → fallback 至 setTimeout，模擬 ~16ms 的 timeRemaining
-//   - 常用於 trim-engine 的批次刪除任務
+// 邊界:
+//   - 不決定何時 trim，只提供 idle 排程原語。
 // ------------------------------------------------------------
 
 export type IdleHandle = number | ReturnType<typeof setTimeout>;

@@ -1,8 +1,9 @@
 // src/content/constants.ts
 // Chat Cleaner - Centralized Constants
 // ------------------------------------------------------------
-// 所有可調整的參數集中於此，方便維護與調整
-// All tunable parameters are centralized here for easy maintenance
+// 職責:
+//   - 集中管理 content runtime 的 tunable constants。
+//   - 優先調整這裡的值，再考慮改動 runtime 行為。
 // ------------------------------------------------------------
 
 /* ============================================================

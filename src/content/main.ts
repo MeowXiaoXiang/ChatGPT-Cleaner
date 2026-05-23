@@ -1,20 +1,14 @@
 // src/content/main.ts
-// Chat Cleaner - Main Entry
+// Chat Cleaner - Runtime Orchestration
 // ------------------------------------------------------------
-// 功能職責 (Responsibilities):
-//   - 組裝 i18n / UI / Observer / Trimmer
-//   - 負責排程與狀態流管理
+// 職責:
+//   - 組裝 i18n、UI、observer、trimmer 與 debug console。
+//   - 管理 content script lifecycle、Long Task gate、route reset。
+//   - 協調 inventory、settings、scheduler、activity guard 等 runtime 模組。
 //
-// 主要職能 (Key Functions):
-//   - 單例防呆 & 啟用旗標（ccx_enabled / ccx_debug）
-//   - Long Task Gate（PerformanceObserver）＋ 自動調速（EMA）
-//   - MutationObserver → 動態排程 trim（Idle + Max 退避）
-//   - Debug hooks / Stop / Toggle
-//
-// 設計要點 (Design Notes):
-//   - Gate 依據 Long Task 的「次數/秒」與「平均耗時」EMA
-//   - trim-engine 僅讀 stormGate.suspended 判斷刪除/隱藏
-//   - 調速僅依據 trim 平均耗時，不依據 DOM Mutation 數量
+// 邊界:
+//   - 不直接持有 inventory / settings / trim scheduling 的內部狀態。
+//   - 不處理 UI 細節、DOM trim 細節或 debug console 註冊細節。
 // ------------------------------------------------------------
 
 import { injectRuntimeStyle, isMarkedHidden } from "./dom-utils";

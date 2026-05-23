@@ -1,3 +1,14 @@
+// src/content/activity-guard.ts
+// Chat Cleaner - Activity Guard
+// ------------------------------------------------------------
+// 職責:
+//   - 偵測使用者在 composer/input 內的近期活動。
+//   - 讓自動 trim 延後到互動冷卻後，避免打斷輸入。
+//
+// 邊界:
+//   - 只影響自動 trim；manual Apply 與 debug forceTrim 由 main.ts 繞過。
+// ------------------------------------------------------------
+
 import type { LogFn } from "./types";
 
 const DEFAULT_COOLDOWN_MS = 1200;

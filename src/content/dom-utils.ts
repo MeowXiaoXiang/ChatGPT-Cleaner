@@ -1,23 +1,13 @@
 // src/content/dom-utils.ts
 // Chat Cleaner - DOM Utilities
 // ------------------------------------------------------------
-// 功能職責 (Responsibilities):
-//   - 提供零依賴的 DOM 輔助 API
-//   - 統一處理標記、查詢與樣式注入
+// 職責:
+//   - 提供零依賴 DOM helper。
+//   - 統一處理 extension class、hidden/inert 標記與 runtime style。
 //
-// 主要職能 (Key Functions):
-//   - $ / $$：簡化 querySelector / querySelectorAll
-//   - CLS：統一樣式 class 常數
-//   - shortSelector：輸出簡短元素定位字串（除錯用）
-//   - injectRuntimeStyle：注入運行時樣式（隱藏 / inert / cv）
-//   - markHidden / unmarkHidden：隱藏或還原節點
-//   - markInert / unmarkInert：封鎖或還原互動
-//   - getVisibleBySelector / getHiddenBySelector：查詢可見 / 已隱藏節點
-//
-// 設計要點 (Design Notes):
+// 邊界:
 //   - 標記狀態皆記錄於 dataset，可安全還原
-//   - 隱藏狀態同時加 aria-hidden / inert，確保可及性與效能
-//   - 僅操作屬性與 class，不涉及業務邏輯
+//   - 僅操作屬性與 class，不包含修剪策略
 // ------------------------------------------------------------
 
 /* ----------------------------- */

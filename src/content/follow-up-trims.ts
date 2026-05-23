@@ -1,3 +1,14 @@
+// src/content/follow-up-trims.ts
+// Chat Cleaner - Follow-Up Trims
+// ------------------------------------------------------------
+// 職責:
+//   - 在 observer init / route change 後排少量延遲檢查。
+//   - 處理 ChatGPT 長對話分批 render 導致的後續 turn 進場。
+//
+// 邊界:
+//   - 不直接 trim，只呼叫 main.ts 提供的排程入口。
+// ------------------------------------------------------------
+
 import type { LogFn } from "./types";
 
 const DEFAULT_DELAYS_MS = [800, 1800, 3500, 6000] as const;

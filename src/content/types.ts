@@ -1,19 +1,9 @@
 // src/content/types.ts
-// Chat Cleaner - Type Definitions
+// Chat Cleaner - Shared Types
 // ------------------------------------------------------------
-// 功能職責 (Responsibilities):
-//   - 集中管理所有跨模組共享的型別定義
-//   - 降低 trim-engine / observer / ui / main 之間的耦合度
-//   - 僅提供型別、常數與函式型別宣告，不含 DOM 操作或業務邏輯
-//
-// 主要職能 (Key Functions):
-//   - 定義 Settings / Stats / DebounceState 等核心資料結構
-//   - 提供 ObserverHandles / Trimmer / CreateTrimmerDeps 等介面
-//   - 建立統一的 LogFn、I18nFn、ShowResultFn 型別
-//
-// 設計要點 (Design Notes):
-//   - 僅作為型別中心，禁止出現任何副作用或邏輯運算
-//   - 由 main.ts 統一管理 localStorage，避免型別與狀態混雜
+// 職責:
+//   - 集中管理 content runtime 的共享型別。
+//   - 僅提供型別宣告，不含 DOM 操作或 runtime side effects。
 // ------------------------------------------------------------
 
 /**
@@ -25,7 +15,7 @@ export type Mode = "hide" | "delete";
 
 /**
  * 內容腳本的全域設定。
- * 建議由 main.ts 統一讀寫 localStorage 並同步這份資料。
+ * localStorage 讀寫由 settings-store.ts 集中處理。
  */
 export interface Settings {
 	/** 目前最多保留的可見訊息數量（>=1） */

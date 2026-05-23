@@ -1,10 +1,12 @@
 // src/content/debug.ts
 // Chat Cleaner - Debug Console
 // ------------------------------------------------------------
-// 功能職責 (Responsibilities):
-//   - 提供 debug-only console API
-//   - 不建立任何頁面 DOM，不影響正式產品 UI
-//   - 統一管理 __ccxDebug 的註冊、watcher 與清理
+// 職責:
+//   - 提供 debug-only console API。
+//   - 統一管理 __ccxDebug 的註冊、watcher 與清理。
+//
+// 邊界:
+//   - 不建立頁面 DOM，也不暴露在正式產品 UI。
 // ------------------------------------------------------------
 
 import type { Mode, TrimResult } from "./types";

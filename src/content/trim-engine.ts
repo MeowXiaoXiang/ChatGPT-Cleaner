@@ -1,22 +1,14 @@
 // src/content/trim-engine.ts
 // Chat Cleaner - Trim Engine
 // ------------------------------------------------------------
-// 功能職責 (Responsibilities):
-//   - 根據 StormGate 狀態決定是否暫停刪除
-//   - 提供 hide / restore / delete 基本操作
-//   - Idle 分段批次刪除（batchDelete，具動態 CHUNK 調整）
-//   - Trimmer：組合修剪流程，統一對外提供 trim / showMore API
+// 職責:
+//   - 提供 hide / restore / delete 基本操作。
+//   - 分段批次刪除，避免大量 DOM remove 阻塞頁面。
+//   - 組合 maxKeep 修剪流程，統一對外提供 trim / showMore API。
 //
-// 主要職能 (Key Functions):
-//   - createDeleter：安全刪除並更新統計
-//   - hideMsg / restoreMsg：隱藏或還原訊息
-//   - batchDelete：大批量刪除，避免一次操作造成卡頓
-//   - createTrimmer：整合修剪邏輯，維持訊息數量上限
-//
-// 設計要點 (Design Notes):
-//   - StormGate.suspended 為唯一刪除暫停依據
-//   - 批次刪除具動態 chunk size，目標維持 8~30ms 執行時間
-//   - trimMessages 在批次與單筆刪除後，皆會統一呼叫 showResult
+// 邊界:
+//   - 不負責 selector diagnostics、UI 狀態或排程策略。
+//   - 只透過 deps 取得 mode/maxKeep/notify/stormGate 等 runtime 狀態。
 // ------------------------------------------------------------
 
 import {

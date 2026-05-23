@@ -1,3 +1,14 @@
+// src/content/settings-store.ts
+// Chat Cleaner - Settings Store
+// ------------------------------------------------------------
+// 職責:
+//   - 集中讀寫 ccx_* localStorage 設定。
+//   - 正規化設定值，讓 main.ts 使用穩定的 Settings 物件。
+//
+// 邊界:
+//   - 不觸碰 UI，也不執行 trim。
+// ------------------------------------------------------------
+
 import { DEFAULT_MAX_KEEP, DEFAULT_MODE } from "./constants";
 import type { ApplyPayload, Mode, Settings } from "./types";
 

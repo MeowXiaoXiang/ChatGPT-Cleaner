@@ -1,3 +1,14 @@
+// src/content/trim-scheduler.ts
+// Chat Cleaner - Trim Scheduler
+// ------------------------------------------------------------
+// 職責:
+//   - 管理 trim 的 idle 排程、取消、resume pending 與 debounce 調速。
+//   - 量測單次 trim 成本並更新 trim average。
+//
+// 邊界:
+//   - 不決定 trim 策略，也不操作 DOM；實際 trim 由 main.ts callback 執行。
+// ------------------------------------------------------------
+
 import { DEBOUNCE, TRIM_THRESHOLD } from "./constants";
 import { cancelIdle, IdleHandle, requestIdle } from "./idle-utils";
 import type { LogFn } from "./types";
