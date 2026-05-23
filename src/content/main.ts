@@ -23,6 +23,7 @@ import { createObserverHandles } from "./observer";
 import { createTurnInventory } from "./turn-inventory";
 import { createTrimScheduler } from "./trim-scheduler";
 import { createActivityGuard } from "./activity-guard";
+import { createFollowUpTrims } from "./follow-up-trims";
 import {
 	persistSettings,
 	readRuntimeFlags,
@@ -392,7 +393,9 @@ import {
 		log,
 	});
 
-	function scheduleAutoTrim(reason: "init" | "mutation" | "stormResume") {
+	type AutoTrimReason = "init" | "mutation" | "stormResume" | "followUp";
+
+	function scheduleAutoTrim(reason: AutoTrimReason) {
 		ensureConversationTracking();
 
 		if (state.mode !== "hide") {
@@ -427,6 +430,11 @@ import {
 			`skip auto trim [${reason}] count=${currentCount} max=${maxObservedTurnCount}`
 		);
 	}
+
+	const followUpTrims = createFollowUpTrims({
+		log,
+		runCheck: () => scheduleAutoTrim("followUp"),
+	});
 
 	// ---- Observer ----
 	// 防止滾動載入時過度觸發的節流機制（從 constants.ts 導入 MIN_TRIM_INTERVAL_MS）
@@ -472,17 +480,20 @@ import {
 		onInit() {
 			inventory.resync("observerInit");
 			scheduleAutoTrim("init");
+			followUpTrims.schedule("observerInit");
 		},
 		onRouteChange() {
 			log("route change -> reset stats + auto-hide tracking");
 			stats.domRemoved = 0;
 			inventory.reset("routeChange", { resetDeleteCount: true });
+			followUpTrims.cancel();
 
 			// 路由變化時，重置自動 hide 的對話追蹤狀態
 			// 避免新對話沿用舊對話的歷史最大值與排程
 			trimScheduler.cancel();
 			trimScheduler.consumePendingAfterResume();
 			refreshConversationTracking("routeChange");
+			followUpTrims.schedule("routeChange");
 		},
 	});
 
@@ -628,6 +639,7 @@ import {
 		try {
 			observerHandles.stop();
 			observerActive = false;
+			followUpTrims.dispose();
 			trimScheduler.dispose();
 			activityGuard.dispose();
 			inventory.dispose();
