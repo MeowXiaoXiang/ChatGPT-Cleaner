@@ -2,8 +2,10 @@
 	"compilerOptions": {
 		"target": "ES2023",
 		"module": "ESNext",
-		"moduleResolution": "Node",
-		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"moduleResolution": "Bundler",
+		"lib": ["ES2023", "DOM"],
+		"types": ["chrome"],
+		"rootDir": "src",
 		"outDir": "dist",
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,

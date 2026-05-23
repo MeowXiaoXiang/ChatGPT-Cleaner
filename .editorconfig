@@ -10,7 +10,15 @@ trim_trailing_whitespace = true
 indent_style = tab
 indent_size = 4
 
-[*.{json,yml,yaml}]
+[*.json]
+indent_style = space
+indent_size = 4
+
+[tsconfig.json]
+indent_style = tab
+indent_size = 4
+
+[*.{yml,yaml}]
 indent_style = space
 indent_size = 2
 

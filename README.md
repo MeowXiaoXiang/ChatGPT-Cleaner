@@ -126,7 +126,7 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 │  │      dom-utils.ts     # DOM utilities (selectors, styling, marking)
 │  │      idle-utils.ts    # Idle callback wrapper for smooth processing
 │  │      main.ts          # Main entry point & orchestration logic
-│  │      monitor.ts       # Lightweight monitor panel with real-time metrics
+│  │      debug.ts         # Debug-mode console API (ccx_debug=1)
 │  │      observer.ts      # DOM mutation observer & route detection
 │  │      trim-engine.ts   # Core message hiding/deleting algorithms
 │  │      types.ts         # Shared TypeScript type definitions

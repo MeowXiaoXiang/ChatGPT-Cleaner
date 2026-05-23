@@ -1,5 +1,5 @@
 // scripts/zip.js
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import { createWriteStream, promises as fs } from "fs";
 import path from "path";
 import url from "url";
@@ -49,7 +49,7 @@ async function main() {
 	// 使用 archiver 壓縮 dist/ 內容（不包一層 dist 資料夾）
 	await new Promise((resolve, reject) => {
 		const output = createWriteStream(outPath);
-		const archive = archiver("zip", { zlib: { level: 9 } });
+		const archive = new ZipArchive({ zlib: { level: 9 } });
 
 		output.on("close", resolve);
 		archive.on("error", reject);

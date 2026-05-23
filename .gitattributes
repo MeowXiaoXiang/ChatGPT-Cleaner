@@ -16,6 +16,8 @@
 *.map text eol=lf
 *.lock text eol=lf
 .gitignore text eol=lf
+.editorconfig text eol=lf
+.gitattributes text eol=lf
 LICENSE text eol=lf
 
 # Windows shell scripts should keep CRLF
