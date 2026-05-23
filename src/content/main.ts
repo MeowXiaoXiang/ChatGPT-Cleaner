@@ -22,6 +22,7 @@ import { createI18n, createToast, mountUI, mountShowMore } from "./ui";
 import { createObserverHandles } from "./observer";
 import { createTurnInventory } from "./turn-inventory";
 import { createTrimScheduler } from "./trim-scheduler";
+import { createActivityGuard } from "./activity-guard";
 import {
 	persistSettings,
 	readRuntimeFlags,
@@ -96,6 +97,7 @@ import {
 		selectorAll: SELECTORS.ALL,
 		log,
 	});
+	const activityGuard = createActivityGuard({ log });
 
 	// Long Task Gate（從 constants.ts 導入）
 	const BUCKET_MS = LONG_TASK.BUCKET_MS;
@@ -353,6 +355,10 @@ import {
 		reason = "mutation",
 		opts: { manual?: boolean; observedCount?: number } = {}
 	) {
+		if (!opts.manual && activityGuard.isActive()) {
+			activityGuard.deferUntilIdle(() => scheduleTrim(reason, opts), reason);
+			return;
+		}
 		trimScheduler.schedule(reason, opts);
 	}
 
@@ -623,6 +629,7 @@ import {
 			observerHandles.stop();
 			observerActive = false;
 			trimScheduler.dispose();
+			activityGuard.dispose();
 			inventory.dispose();
 
 			// 停用時完整還原 hide 模式留下的 aria-hidden / inert / class 標記
