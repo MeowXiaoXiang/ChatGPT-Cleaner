@@ -21,6 +21,7 @@ import { injectRuntimeStyle, isMarkedHidden } from "./dom-utils";
 import { createI18n, createToast, mountUI, mountShowMore } from "./ui";
 import { createObserverHandles } from "./observer";
 import { createTurnInventory } from "./turn-inventory";
+import { createTrimScheduler } from "./trim-scheduler";
 import {
 	persistSettings,
 	readRuntimeFlags,
@@ -33,8 +34,7 @@ import {
 	getHidden,
 	restoreMsg,
 } from "./trim-engine";
-import { requestIdle, cancelIdle, IdleHandle } from "./idle-utils";
-import type { DebounceState, Selectors, Settings, Stats } from "./types";
+import type { Selectors, Settings, Stats } from "./types";
 import {
 	clearDebugConsole,
 	mountDebugConsole,
@@ -46,18 +46,12 @@ import {
 	sampleElements,
 } from "./debug";
 import {
-	DEBOUNCE,
-	TRIM_THRESHOLD,
 	LONG_TASK,
 	MIN_TRIM_INTERVAL_MS,
 	WAKE,
 	SELECTORS as SEL,
 	SELECTOR_ALL,
 } from "./constants";
-
-// ---- 全域計時器綁定 ----
-const setT = globalThis.setTimeout.bind(globalThis);
-const clearT = globalThis.clearTimeout.bind(globalThis);
 
 (() => {
 	// ---- flags ----
@@ -94,27 +88,8 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	const state: Settings = readSettings();
 	const stats: Stats = { domRemoved: 0 };
 
-	// ---- 調速參數（從 constants.ts 導入）----
-	const TRIM_SLOW_MS = TRIM_THRESHOLD.SLOW_MS;
-	const STEP_UP_MS = TRIM_THRESHOLD.STEP_UP_MS;
-	const STEP_DOWN_MS = TRIM_THRESHOLD.STEP_DOWN_MS;
-
-	const debounce: DebounceState = {
-		delay: DEBOUNCE.DELAY_INIT,
-		min: DEBOUNCE.DELAY_MIN,
-		max: DEBOUNCE.DELAY_MAX,
-		emaAlpha: DEBOUNCE.EMA_ALPHA,
-		trimAvgMs: 0,
-	};
-
-	let scheduled = false;
-	let idleId: IdleHandle | null = null;
-	let timerId: ReturnType<typeof setTimeout> | null = null;
 	let maxObservedTurnCount = 0;
 	let lastConversationKey = location.href;
-	let pendingTrimAfterResume = false;
-	let pendingTrimManual = false;
-	let scheduledTrimManual = false;
 
 	const styleTag = injectRuntimeStyle();
 	const inventory = createTurnInventory({
@@ -177,24 +152,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			return ltSuspended;
 		},
 	};
-
-	function cancelScheduledTrim() {
-		if (idleId != null) {
-			cancelIdle(idleId);
-			idleId = null;
-		}
-		if (timerId != null) {
-			clearT(timerId);
-			timerId = null;
-		}
-		scheduled = false;
-		scheduledTrimManual = false;
-	}
-
-	function queueTrimAfterResume(opts: { manual?: boolean } = {}) {
-		pendingTrimAfterResume = true;
-		pendingTrimManual = pendingTrimManual || !!opts.manual;
-	}
 
 	function getConversationKey() {
 		return location.href;
@@ -320,7 +277,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 
 	let observerActive = false;
 
-	// ---- EMA 工具 ----
+	// ---- EMA 工具（Long Task gate）----
 	function EMA(p: number | null | undefined, c: number, a: number) {
 		return p == null ? c : p * (1 - a) + c * a;
 	}
@@ -368,10 +325,11 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 					2
 				)}/s avg=${ltAvgDurEMA.toFixed(1)}ms`
 			);
-			if (scheduled) {
-				queueTrimAfterResume({ manual: scheduledTrimManual });
+			const scheduledSnapshot = trimScheduler.getSnapshot();
+			if (scheduledSnapshot.scheduled) {
+				trimScheduler.queueAfterResume({ manual: scheduledSnapshot.manual });
 			}
-			cancelScheduledTrim(); // 暫停時取消既定排程
+			trimScheduler.cancel(); // 暫停時取消既定排程
 		} else if (shouldExit) {
 			ltSuspended = false;
 			log(
@@ -379,10 +337,9 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 					2
 				)}/s avg=${ltAvgDurEMA.toFixed(1)}ms`
 			);
-			if (pendingTrimAfterResume) {
-				const manual = pendingTrimManual;
-				pendingTrimAfterResume = false;
-				pendingTrimManual = false;
+			const pendingTrim = trimScheduler.consumePendingAfterResume();
+			if (pendingTrim.pending) {
+				const manual = pendingTrim.manual;
 				log(`resume pending trim | manual=${manual ? "1" : "0"}`);
 				scheduleTrim("stormResumePending", { manual });
 			} else {
@@ -391,93 +348,43 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		}
 	}
 
-	// ---- 自動調速（只依 trimAvgMs）----
-	function autoTuneDebounce(reason: string) {
-		const prev = debounce.delay;
-
-		if (debounce.trimAvgMs > TRIM_SLOW_MS) {
-			debounce.delay = Math.min(
-				debounce.max,
-				Math.round(debounce.delay + STEP_UP_MS)
-			);
-		} else if (debounce.trimAvgMs < TRIM_SLOW_MS * (2 / 3)) {
-			debounce.delay = Math.max(
-				debounce.min,
-				Math.round(debounce.delay - STEP_DOWN_MS)
-			);
-		}
-
-		if (debounce.delay !== prev) {
-			log(
-				`debounce=${
-					debounce.delay
-				}ms [${reason}] | trim=${debounce.trimAvgMs.toFixed(2)}ms`
-			);
-		}
-	}
-
 	// ---- 排程 ----
 	function scheduleTrim(
 		reason = "mutation",
 		opts: { manual?: boolean; observedCount?: number } = {}
 	) {
-		if (scheduled) return;
-		if (stormGate.suspended) {
-			queueTrimAfterResume({ manual: opts.manual });
-			log(`skip schedule [${reason}] (suspended)`);
-			return;
-		}
-		if (Date.now() < wakeCooldownUntil) {
-			// 回前景冷卻期間
-			log(`skip schedule [${reason}] (wakeCooldown)`);
-			return;
-		}
-
-		scheduled = true;
-		scheduledTrimManual = !!opts.manual;
-		log(`scheduleTrim [${reason}] delay=${debounce.delay}ms`);
-
-		const run = () => {
-			cancelScheduledTrim();
-
-			const t0 = performance.now();
-			const res = trimmer.trimMessages();
-			const t1 = performance.now();
-
-			if (state.mode === "hide") {
-				showMore.update();
-				if (opts.manual) {
-					syncHideBaseline(reason);
-				} else if (typeof opts.observedCount === "number") {
-					maxObservedTurnCount = Math.max(
-						maxObservedTurnCount,
-						opts.observedCount
-					);
-					log(
-						`auto-hide max observed [${reason}] => ${maxObservedTurnCount}`
-					);
-				}
-			}
-
-			debounce.trimAvgMs = EMA(
-				debounce.trimAvgMs,
-				t1 - t0,
-				debounce.emaAlpha
-			);
-			autoTuneDebounce("afterTrim");
-
-			void res;
-		};
-
-		idleId = requestIdle(run, { timeout: debounce.delay });
-		timerId = setT(() => {
-			if (scheduled) {
-				cancelIdle(idleId);
-				idleId = null;
-				run();
-			}
-		}, debounce.max);
+		trimScheduler.schedule(reason, opts);
 	}
+
+	function runScheduledTrim(
+		reason: string,
+		opts: { manual?: boolean; observedCount?: number } = {}
+	) {
+		const res = trimmer.trimMessages();
+		if (state.mode === "hide") {
+			showMore.update();
+			if (opts.manual) {
+				syncHideBaseline(reason);
+			} else if (typeof opts.observedCount === "number") {
+				maxObservedTurnCount = Math.max(
+					maxObservedTurnCount,
+					opts.observedCount
+				);
+				log(
+					`auto-hide max observed [${reason}] => ${maxObservedTurnCount}`
+				);
+			}
+		}
+
+		void res;
+	}
+
+	const trimScheduler = createTrimScheduler({
+		runTrim: runScheduledTrim,
+		isSuspended: () => stormGate.suspended,
+		isWakeCoolingDown: () => Date.now() < wakeCooldownUntil,
+		log,
+	});
 
 	function scheduleAutoTrim(reason: "init" | "mutation" | "stormResume") {
 		ensureConversationTracking();
@@ -564,12 +471,11 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			log("route change -> reset stats + auto-hide tracking");
 			stats.domRemoved = 0;
 			inventory.reset("routeChange", { resetDeleteCount: true });
-			pendingTrimAfterResume = false;
-			pendingTrimManual = false;
-			
+
 			// 路由變化時，重置自動 hide 的對話追蹤狀態
 			// 避免新對話沿用舊對話的歷史最大值與排程
-			cancelScheduledTrim();
+			trimScheduler.cancel();
+			trimScheduler.consumePendingAfterResume();
 			refreshConversationTracking("routeChange");
 		},
 	});
@@ -629,7 +535,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			visibleCount: inventorySnapshot.visibleCount,
 			hiddenCount: inventorySnapshot.hiddenCount,
 			removedCount: inventorySnapshot.removedCount,
-			trimAvgMs: +debounce.trimAvgMs.toFixed(2),
+			trimAvgMs: +trimScheduler.getSnapshot().trimAvgMs.toFixed(2),
 			suspended: stormGate.suspended,
 			longTaskRateEMA: +ltRateEMA.toFixed(2),
 			longTaskAvgMsEMA: +ltAvgDurEMA.toFixed(1),
@@ -644,7 +550,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 
 	function forceTrim(): ForceTrimDebugResult | null {
 		try {
-			cancelScheduledTrim();
+			trimScheduler.cancel();
 			const t0 = performance.now();
 			const res = trimmer.trimMessages();
 			const t1 = performance.now();
@@ -716,9 +622,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		try {
 			observerHandles.stop();
 			observerActive = false;
-			cancelScheduledTrim();
-			pendingTrimAfterResume = false;
-			pendingTrimManual = false;
+			trimScheduler.dispose();
 			inventory.dispose();
 
 			// 停用時完整還原 hide 模式留下的 aria-hidden / inert / class 標記
