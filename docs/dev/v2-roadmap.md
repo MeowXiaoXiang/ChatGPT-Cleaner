@@ -4,31 +4,62 @@ This document tracks the v2 cleanup and improvement line on `codex/v2`.
 
 The goal of v2 is to improve runtime stability, diagnostics, and maintainability before making visible UI changes. UI redesign and any fetch/API-level experiment are intentionally placed late because they require separate product decisions.
 
+Architecture note:
+
+- See `docs/dev/architecture-assessment.md`.
+
+## V2 Design Scope
+
+V2 should clarify what this extension wants to be before adding new behavior.
+
+The product scope stays small:
+
+- Keep only two user-facing cleanup modes:
+  - `hide`
+  - `delete`
+- Keep `hide` conservative and restorable.
+- Keep current DOM deletion as the baseline `delete` behavior.
+- Improve runtime safety around the existing behavior:
+  - selector evidence
+  - typing/activity guard
+  - initial-load and route-change follow-up trims
+  - clearer debug diagnostics
+- Refresh the normal UI after runtime status data is stable.
+- Consider delete-mode API/history limiting only as an opt-in experiment.
+
+Reference implementations may inspire design choices, but they are not part of the
+product plan and should not become implementation dependencies.
+
+Explicit non-goals:
+
+- Do not add a third cleanup mode.
+- Do not make API/history limiting default behavior.
+- Do not add scroll-driven history reveal behavior.
+- Do not adopt external extension code or architecture wholesale.
+- Do not redesign UI and runtime behavior in the same change.
+
 ## Guiding Rules
 
 - Keep `main` stable; v2 work happens on `codex/v2`.
-- Prefer small commits directly on `codex/v2` for low-risk internal cleanup.
-- Use feature branches and PRs into `codex/v2` for behavior changes, UI changes, or high-risk runtime work.
+- Prefer small, focused commits directly on `codex/v2`.
+- Keep behavior changes isolated in their own commits so regressions are easy to trace.
 - Do not add fetch/API response limiting in early phases.
 - Do not broaden selectors without diagnostic evidence.
 - Avoid UI changes until runtime stability work has a clear baseline.
 
-## Branch / PR Policy
+## Commit Policy
 
-Use commits directly on `codex/v2` for documentation, diagnostics, and low-risk internal cleanup.
+Use focused commits directly on `codex/v2` for documentation, diagnostics, internal
+cleanup, and planned v2 runtime work.
 
-Use a feature branch plus PR into `codex/v2` when the change affects runtime behavior, user-visible UI, selector behavior, scheduling, or any experiment that may need review or rollback.
+Separate commits by responsibility:
 
-Suggested feature branch format:
-
-```text
-codex-v2-selector-stability
-codex-v2-typing-guard
-codex-v2-initial-load-trims
-codex-v2-status-ui
-```
-
-Only open a PR into `main` when the v2 track is ready to become the release line.
+- documentation and planning
+- behavior-preserving architecture extraction
+- selector behavior changes
+- scheduling behavior changes
+- UI behavior or styling changes
+- optional experiments
 
 ## Phase 0 - Diagnostics Foundation
 
@@ -63,7 +94,8 @@ Acceptance baseline:
 
 Purpose: understand current selector behavior before changing selectors.
 
-Integration policy: documentation and observation notes can be direct commits on `codex/v2`; any selector code change requires a feature branch and PR into `codex/v2`.
+Integration policy: documentation and observation notes can be committed directly on
+`codex/v2`; any selector code change should be isolated in its own focused commit.
 
 Work:
 
@@ -90,7 +122,7 @@ Non-goals:
 
 Purpose: reduce interference while the user is actively typing or interacting with the composer.
 
-Integration policy: feature branch and PR into `codex/v2`.
+Integration policy: focused commit on `codex/v2`.
 
 Candidate work:
 
@@ -116,7 +148,7 @@ Non-goals:
 
 Purpose: handle long conversations that render in waves after initial load or route changes.
 
-Integration policy: feature branch and PR into `codex/v2`.
+Integration policy: focused commit on `codex/v2`.
 
 Candidate work:
 
@@ -140,7 +172,8 @@ Non-goals:
 
 Purpose: prepare stable status data before changing the visible UI.
 
-Integration policy: feature branch and PR into `codex/v2` if runtime data flow changes; direct commit is acceptable only for design notes.
+Integration policy: focused commit on `codex/v2` if runtime data flow changes; direct
+documentation commit is acceptable only for design notes.
 
 Candidate work:
 
@@ -167,7 +200,7 @@ Non-goals:
 
 Purpose: make the cleaner's result visible without using debug tools.
 
-Integration policy: feature branch and PR into `codex/v2`.
+Integration policy: focused commit on `codex/v2`.
 
 Reason for late placement: UI direction needs separate product decisions and should use stable runtime status data from earlier phases.
 
@@ -189,7 +222,7 @@ Non-goals:
 
 Purpose: make the extension feel quieter and closer to ChatGPT's native utility surfaces.
 
-Integration policy: feature branch and PR into `codex/v2`.
+Integration policy: focused commit on `codex/v2`.
 
 Reason for late placement: visual direction has more subjective tradeoffs and should not block runtime hardening.
 
@@ -207,9 +240,14 @@ Non-goals:
 
 Purpose: evaluate whether API-level history limiting is worth a separate experimental track.
 
-Integration policy: feature branch and PR into `codex/v2`; never direct commit to `codex/v2` without a separate design note first.
+Integration policy: focused commit on `codex/v2`; never implement this experiment without
+a separate design note first.
 
 Reason for last placement: this is the highest-risk area because it depends on ChatGPT's private response shape and can affect conversation loading semantics.
+
+Design note:
+
+- See `docs/dev/delete-api-experiment-plan.md`.
 
 Default decision:
 
@@ -230,8 +268,12 @@ Non-goals:
 
 Recommended next action:
 
-1. Run selector diagnostics on several real ChatGPT conversations.
-2. Record findings in a `docs/dev/selector-stability-notes.md` file.
-3. Decide whether selector changes are actually needed.
+1. Commit the current planning docs.
+2. Run selector diagnostics on several real ChatGPT conversations.
+3. Record findings in a `docs/dev/selector-stability-notes.md` file.
+4. Decide whether `section[data-turn-id]` should join the supported selector set.
+5. Do a small behavior-preserving architecture extraction, starting with turn inventory.
+6. Implement the Phase 2 typing/activity guard.
 
-If runtime behavior feels stable, the next code change should likely be Phase 2: typing/activity guard.
+After Phase 2 and Phase 3 are stable, revisit the optional delete-mode API/history
+limiting experiment in `docs/dev/delete-api-experiment-plan.md`.
