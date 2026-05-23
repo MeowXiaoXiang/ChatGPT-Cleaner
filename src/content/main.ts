@@ -20,6 +20,7 @@
 import { injectRuntimeStyle, isMarkedHidden } from "./dom-utils";
 import { createI18n, createToast, mountUI, mountShowMore } from "./ui";
 import { createObserverHandles } from "./observer";
+import { createTurnInventory } from "./turn-inventory";
 import {
 	createDeleter,
 	createTrimmer,
@@ -117,12 +118,15 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	let timerId: ReturnType<typeof setTimeout> | null = null;
 	let maxObservedTurnCount = 0;
 	let lastConversationKey = location.href;
-	let inventoryResyncTimer: ReturnType<typeof setTimeout> | null = null;
 	let pendingTrimAfterResume = false;
 	let pendingTrimManual = false;
 	let scheduledTrimManual = false;
 
 	const styleTag = injectRuntimeStyle();
+	const inventory = createTurnInventory({
+		selectorAll: SELECTORS.ALL,
+		log,
+	});
 
 	// Long Task Gate（從 constants.ts 導入）
 	const BUCKET_MS = LONG_TASK.BUCKET_MS;
@@ -180,154 +184,6 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		},
 	};
 
-	const inventory = {
-		knownTurnIds: new Set<string>(),
-		turnHidden: new Map<string, boolean>(),
-		visibleCount: 0,
-		hiddenCount: 0,
-		deleteModeRemovedCount: 0,
-		tempSeq: 0,
-		elementKeys: new WeakMap<Element, string>(),
-	};
-
-	function resetInventory(
-		reason: string,
-		opts: { resetDeleteCount?: boolean } = {}
-	) {
-		inventory.knownTurnIds.clear();
-		inventory.turnHidden.clear();
-		inventory.visibleCount = 0;
-		inventory.hiddenCount = 0;
-		if (opts.resetDeleteCount) inventory.deleteModeRemovedCount = 0;
-		log(`inventory reset [${reason}]`);
-	}
-
-	function getTurnKey(el: Element): string {
-		const existed = inventory.elementKeys.get(el);
-		if (existed) return existed;
-
-		const base =
-			el.getAttribute("data-turn-id") ||
-			el.getAttribute("data-testid") ||
-			`ccx-temp-turn-${++inventory.tempSeq}`;
-
-		inventory.elementKeys.set(el, base);
-		return base;
-	}
-
-	function scheduleInventoryResync(
-		reason: string,
-		opts: { resetDeleteCount?: boolean } = {}
-	) {
-		if (inventoryResyncTimer != null) return;
-		inventoryResyncTimer = setT(() => {
-			inventoryResyncTimer = null;
-			resyncInventory(reason, opts);
-		}, 0);
-	}
-
-	function ensureInventoryNonNegative(reason: string) {
-		if (inventory.visibleCount >= 0 && inventory.hiddenCount >= 0) return;
-		log(
-			`inventory drift detected [${reason}] visible=${inventory.visibleCount} hidden=${inventory.hiddenCount}`
-		);
-		scheduleInventoryResync(`drift:${reason}`);
-	}
-
-	function resyncInventory(
-		reason: string,
-		opts: { resetDeleteCount?: boolean } = {}
-	) {
-		resetInventory(reason, opts);
-		const turns = Array.from(document.querySelectorAll<Element>(SELECTORS.ALL));
-		for (const el of turns) {
-			const key = getTurnKey(el);
-			const hidden = isMarkedHidden(el);
-			inventory.knownTurnIds.add(key);
-			inventory.turnHidden.set(key, hidden);
-			if (hidden) inventory.hiddenCount++;
-			else inventory.visibleCount++;
-		}
-		log(
-			`inventory resync [${reason}] visible=${inventory.visibleCount} hidden=${inventory.hiddenCount} turns=${inventory.knownTurnIds.size}`
-		);
-	}
-
-	function trackAddedTurn(el: Element) {
-		const key = getTurnKey(el);
-		if (inventory.knownTurnIds.has(key)) return;
-
-		const hidden = isMarkedHidden(el);
-		inventory.knownTurnIds.add(key);
-		inventory.turnHidden.set(key, hidden);
-		if (hidden) inventory.hiddenCount++;
-		else inventory.visibleCount++;
-		ensureInventoryNonNegative("trackAddedTurn");
-	}
-
-	function trackRemovedTurn(el: Element) {
-		const key = getTurnKey(el);
-		if (!inventory.knownTurnIds.has(key)) return;
-
-		const hidden =
-			inventory.turnHidden.get(key) ?? isMarkedHidden(el);
-		inventory.knownTurnIds.delete(key);
-		inventory.turnHidden.delete(key);
-		if (hidden) inventory.hiddenCount--;
-		else inventory.visibleCount--;
-		ensureInventoryNonNegative("trackRemovedTurn");
-	}
-
-	function trackTurnHidden(el: Element) {
-		const key = getTurnKey(el);
-		if (!inventory.knownTurnIds.has(key)) {
-			scheduleInventoryResync("hideUnknown");
-			return;
-		}
-
-		if (inventory.turnHidden.get(key)) return;
-		inventory.turnHidden.set(key, true);
-		inventory.visibleCount--;
-		inventory.hiddenCount++;
-		ensureInventoryNonNegative("trackTurnHidden");
-	}
-
-	function trackTurnRestored(el: Element) {
-		const key = getTurnKey(el);
-		if (!inventory.knownTurnIds.has(key)) {
-			scheduleInventoryResync("restoreUnknown");
-			return;
-		}
-
-		if (!inventory.turnHidden.get(key)) return;
-		inventory.turnHidden.set(key, false);
-		inventory.hiddenCount--;
-		inventory.visibleCount++;
-		ensureInventoryNonNegative("trackTurnRestored");
-	}
-
-	function trackTurnDeleted(el: Element, wasHidden: boolean) {
-		const key = getTurnKey(el);
-		const known = inventory.knownTurnIds.has(key);
-		const hidden = known
-			? inventory.turnHidden.get(key) ?? wasHidden
-			: wasHidden;
-
-		if (known) {
-			inventory.knownTurnIds.delete(key);
-			inventory.turnHidden.delete(key);
-			if (hidden) inventory.hiddenCount--;
-			else inventory.visibleCount--;
-		} else {
-			scheduleInventoryResync("deleteUnknown");
-		}
-
-		if (state.mode === "delete") {
-			inventory.deleteModeRemovedCount++;
-		}
-		ensureInventoryNonNegative("trackTurnDeleted");
-	}
-
 	function cancelScheduledTrim() {
 		if (idleId != null) {
 			cancelIdle(idleId);
@@ -351,7 +207,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	}
 
 	function getVisibleTurnCount() {
-		return inventory.visibleCount;
+		return inventory.getSnapshot().visibleCount;
 	}
 
 	function refreshConversationTracking(reason: string) {
@@ -392,7 +248,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 				state.notify = next.notify;
 
 				if (oldMode !== state.mode) {
-					inventory.deleteModeRemovedCount = 0;
+					inventory.resetRemovedCount();
 				}
 
 				localStorage.setItem("ccx_max_keep", String(state.maxKeep));
@@ -416,7 +272,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 									);
 								}
 							},
-							() => scheduleInventoryResync("hideToDeletePurge")
+							() => inventory.scheduleResync("hideToDeletePurge")
 						);
 					}
 				}
@@ -435,7 +291,12 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		},
 	});
 
-	const deleteMsg = createDeleter(log, stats, trackTurnDeleted);
+	const deleteMsg = createDeleter(log, stats, (el, wasHidden) =>
+		inventory.trackTurnDeleted(el, {
+			wasHidden,
+			countRemoved: state.mode === "delete",
+		})
+	);
 	const trimmer = createTrimmer({
 		selectors: SELECTORS,
 		modeRef: () => state.mode,
@@ -447,8 +308,8 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			if (state.notify) showResult(res, state.mode, auto);
 		},
 		log,
-		onTurnHidden: trackTurnHidden,
-		onTurnRestored: trackTurnRestored,
+		onTurnHidden: inventory.trackTurnHidden,
+		onTurnRestored: inventory.trackTurnRestored,
 	});
 
 	// ---- Show More（只在 hide 模式顯示）----
@@ -671,8 +532,8 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 		selectors: SELECTORS,
 		log,
 		onTurnMutations(batch) {
-			for (const el of batch.removed) trackRemovedTurn(el);
-			for (const el of batch.added) trackAddedTurn(el);
+			for (const el of batch.removed) inventory.trackRemovedTurn(el);
+			for (const el of batch.added) inventory.trackAddedTurn(el);
 		},
 		onMutation(muts) {
 			if (Date.now() < resumeMuteUntil) return; // 回前景首波：略過
@@ -705,13 +566,13 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			}
 		},
 		onInit() {
-			resyncInventory("observerInit");
+			inventory.resync("observerInit");
 			scheduleAutoTrim("init");
 		},
 		onRouteChange() {
 			log("route change -> reset stats + auto-hide tracking");
 			stats.domRemoved = 0;
-			resetInventory("routeChange", { resetDeleteCount: true });
+			inventory.reset("routeChange", { resetDeleteCount: true });
 			pendingTrimAfterResume = false;
 			pendingTrimManual = false;
 			
@@ -770,12 +631,13 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	}
 
 	function getDebugMetrics(): DebugMetrics {
+		const inventorySnapshot = inventory.getSnapshot();
 		return {
 			mode: state.mode,
 			maxKeep: state.maxKeep,
-			visibleCount: inventory.visibleCount,
-			hiddenCount: inventory.hiddenCount,
-			removedCount: inventory.deleteModeRemovedCount,
+			visibleCount: inventorySnapshot.visibleCount,
+			hiddenCount: inventorySnapshot.hiddenCount,
+			removedCount: inventorySnapshot.removedCount,
 			trimAvgMs: +debounce.trimAvgMs.toFixed(2),
 			suspended: stormGate.suspended,
 			longTaskRateEMA: +ltRateEMA.toFixed(2),
@@ -809,27 +671,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 	}
 
 	function dumpInventory(): InventoryDebugReport {
-		let hiddenMapTrueCount = 0;
-		let hiddenMapFalseCount = 0;
-		for (const hidden of inventory.turnHidden.values()) {
-			if (hidden) hiddenMapTrueCount++;
-			else hiddenMapFalseCount++;
-		}
-
-		return {
-			knownTurnCount: inventory.knownTurnIds.size,
-			turnHiddenCount: inventory.turnHidden.size,
-			visibleCount: inventory.visibleCount,
-			hiddenCount: inventory.hiddenCount,
-			removedCount: inventory.deleteModeRemovedCount,
-			hiddenMapTrueCount,
-			hiddenMapFalseCount,
-			countsConsistent:
-				inventory.knownTurnIds.size === inventory.turnHidden.size &&
-				inventory.visibleCount === hiddenMapFalseCount &&
-				inventory.hiddenCount === hiddenMapTrueCount,
-			sampleKeys: Array.from(inventory.knownTurnIds).slice(0, 8),
-		};
+		return inventory.dumpReport();
 	}
 
 	function explainSelectors(): SelectorDebugReport {
@@ -886,10 +728,7 @@ const clearT = globalThis.clearTimeout.bind(globalThis);
 			cancelScheduledTrim();
 			pendingTrimAfterResume = false;
 			pendingTrimManual = false;
-			if (inventoryResyncTimer != null) {
-				clearT(inventoryResyncTimer);
-				inventoryResyncTimer = null;
-			}
+			inventory.dispose();
 
 			// 停用時完整還原 hide 模式留下的 aria-hidden / inert / class 標記
 			const hiddenNodes = getHidden(SELECTORS.ALL);
