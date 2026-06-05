@@ -15,7 +15,7 @@ export type Mode = "hide" | "delete";
 
 /**
  * 內容腳本的全域設定。
- * localStorage 讀寫由 settings-store.ts 集中處理。
+ * extension storage 讀寫由 settings-store.ts 集中處理。
  */
 export interface Settings {
 	/** 目前最多保留的可見訊息數量（>=1） */
@@ -24,9 +24,9 @@ export interface Settings {
 	notify: boolean;
 	/** 運作模式（隱藏 / 刪除） */
 	mode: Mode;
-	/** 是否啟用（對應 ccx_enabled） */
+	/** 是否啟用（對應 extension storage enabled） */
 	enabled: boolean;
-	/** 除錯開關（對應 ccx_debug）- 僅控制 console 日誌 */
+	/** 除錯開關（對應 extension storage debug）- 僅控制 console 日誌 */
 	debug: boolean;
 }
 

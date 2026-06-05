@@ -151,13 +151,13 @@ export const WAKE = {
 
 /**
  * ChatGPT 對話訊息選擇器
- * 備用選擇器使用 UUID-based data-turn-id
+ * 備用選擇器使用 UUID-based data-turn-id，並限制 data-turn 避免誤抓內層節點。
  */
 export const SELECTORS = {
 	/** 主選擇器：依 data-testid */
 	PRIMARY: '[data-testid^="conversation-turn-"]',
-	/** 備用選擇器：依 data-turn-id (2025 新增的 UUID) */
-	FALLBACK: "article[data-turn-id][data-turn]",
+	/** 備用選擇器：依 data-turn-id (ChatGPT 目前以 section 為 turn root，保留 article 相容) */
+	FALLBACK: "section[data-turn-id][data-turn], article[data-turn-id][data-turn]",
 } as const;
 
 /** 合併選擇器（用於 querySelectorAll） */

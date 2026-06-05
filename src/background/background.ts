@@ -1,9 +1,8 @@
 // background.ts — Stable, minimal, reliable (ISOLATED-only)
 // ------------------------------------------------------------
-// - 點擊工具列切換 ccx_enabled；ON 時 reload 注入 content script
+// - 點擊工具列切換 extension storage enabled；ON 時 reload 注入 content script
 // - 分頁載入完成 / 切換分頁 / 安裝或啟動時，同步徽章
 // - 僅處理 ChatGPT 網域；其它頁面清空徽章
-// - 一律在 ISOLATED world 操作：可讀寫 localStorage、可呼叫 __ccxChatCleanerStop()
 // ------------------------------------------------------------
 
 const CHAT_URL_RE = /^https:\/\/(chatgpt\.com|chat\.openai\.com)(\/|$)/;
@@ -52,55 +51,46 @@ async function clearBadge(tabId: number) {
 	);
 }
 
-/**
- * 讀取：頁面 localStorage（無值時回傳 true，與 content 行為一致）
- * 一律在 ISOLATED world，以確保能與 content script 同世界互動。
- */
-async function readEnabledFromTab(tabId: number): Promise<boolean> {
-	try {
-		const [res] = await chrome.scripting.executeScript({
-			target: { tabId },
-			world: "ISOLATED",
-			func: () => {
-				try {
-					const v = localStorage.getItem("ccx_enabled");
-					return v == null ? true : v !== "0";
-				} catch {
-					return true; // 保守：讀失敗時當作啟用，避免把啟用頁誤標 OFF
-				}
-			},
+function readEnabled(): Promise<boolean> {
+	return new Promise((resolve) => {
+		chrome.storage.local.get({ enabled: true }, (items) => {
+			if (chrome.runtime.lastError) {
+				resolve(true);
+				return;
+			}
+			resolve(items.enabled !== false);
 		});
-		return !!res?.result;
-	} catch {
-		// 分頁切換/關閉期間可能失敗；保守回傳 true（不顯示 OFF 造成誤導）
-		return true;
-	}
+	});
 }
 
-/**
- * 寫入：頁面 localStorage；關閉時若存在停止器就叫一下。
- * 一律在 ISOLATED world，因為 __ccxChatCleanerStop 掛在 content script（隔離世界）。
- */
-async function writeEnabledToTab(tabId: number, nextEnabled: boolean) {
+function writeEnabled(nextEnabled: boolean): Promise<void> {
+	return new Promise((resolve, reject) => {
+		chrome.storage.local.set({ enabled: nextEnabled }, () => {
+			if (chrome.runtime.lastError) {
+				reject(new Error(chrome.runtime.lastError.message));
+				return;
+			}
+			resolve();
+		});
+	});
+}
+
+/** 關閉時若 content script 已載入，立即收掉 UI/observer。 */
+async function stopCleanerInTab(tabId: number) {
 	try {
 		await chrome.scripting.executeScript({
 			target: { tabId },
 			world: "ISOLATED",
-			func: (willEnable: boolean) => {
+			func: () => {
 				try {
-					localStorage.setItem("ccx_enabled", willEnable ? "1" : "0");
-					// 關閉時同步呼叫 content script 暴露的停止器，立即把 UI/觀察器收掉
-					if (!willEnable && (window as any).__ccxChatCleanerStop) {
-						(window as any).__ccxChatCleanerStop();
-					}
+					(window as any).__ccxChatCleanerStop?.();
 				} catch (e) {
 					console.error("[background] toggle error", e);
 				}
 			},
-			args: [nextEnabled],
 		});
 	} catch {
-		// 分頁不存在/無權限等情況下寫入可能失敗；忽略即可
+		// 分頁不存在/無權限等情況下可能失敗；忽略即可
 	}
 }
 
@@ -112,7 +102,7 @@ async function syncBadgeForTab(tab: chrome.tabs.Tab) {
 		return;
 	}
 	try {
-		const enabled = await readEnabledFromTab(tab.id);
+		const enabled = await readEnabled();
 		await setBadge(tab.id, enabled);
 	} catch {
 		// 讀不到狀態就清空徽章，避免殘留舊值
@@ -124,10 +114,10 @@ async function syncBadgeForTab(tab: chrome.tabs.Tab) {
 chrome.action.onClicked.addListener(async (tab) => {
 	if (!tab?.id || !isChatPage(tab.url)) return;
 
-	const current = await readEnabledFromTab(tab.id);
+	const current = await readEnabled();
 	const next = !current;
 
-	await writeEnabledToTab(tab.id, next);
+	await writeEnabled(next);
 	try {
 		await setBadge(tab.id, next);
 	} catch {}
@@ -136,6 +126,8 @@ chrome.action.onClicked.addListener(async (tab) => {
 		try {
 			await chrome.tabs.reload(tab.id);
 		} catch {}
+	} else {
+		await stopCleanerInTab(tab.id);
 	}
 });
 

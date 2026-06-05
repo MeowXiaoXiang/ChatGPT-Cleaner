@@ -29,6 +29,13 @@ export interface DebugMetrics {
 		enterAvg: number;
 		exitAvg: number;
 	};
+	activity: {
+		active: boolean;
+		composing: boolean;
+		remainingMs: number;
+		composerCandidateCount: number;
+		activeElementIsComposer: boolean;
+	};
 }
 
 export interface ForceTrimDebugResult {
@@ -61,16 +68,54 @@ export interface SelectorDebugSample {
 	connected: boolean;
 }
 
+export interface SelectorProbeCounts {
+	mainCount: number;
+	threadCount: number;
+	turnIdCount: number;
+	turnAttrCount: number;
+	messageRoleCount: number;
+	conversationTestIdCount: number;
+	turnTestIdCount: number;
+	sectionTurnIdCount: number;
+	articleTurnIdCount: number;
+	composerCandidateCount: number;
+}
+
 export interface SelectorDebugReport {
 	primarySelector: string;
 	fallbackSelector: string;
 	combinedSelector: string;
+	page: {
+		href: string;
+		readyState: DocumentReadyState;
+		title: string;
+		bodyChildCount: number;
+	};
 	primaryCount: number;
 	fallbackCount: number;
 	combinedCount: number;
+	probeCounts: SelectorProbeCounts;
 	hiddenMarkedCount: number;
 	visibleCount: number;
+	authorCounts: {
+		user: number;
+		assistant: number;
+		other: number;
+	};
+	contentVisibilityCount: number;
 	samples: SelectorDebugSample[];
+	candidateSamples: SelectorDebugSample[];
+}
+
+export interface ActivityDebugReport {
+	active: boolean;
+	composing: boolean;
+	activeUntil: number;
+	remainingMs: number;
+	composerSelector: string;
+	composerCandidateCount: number;
+	activeElementIsComposer: boolean;
+	activeElement: SelectorDebugSample | null;
 }
 
 export interface DebugConsoleApi {
@@ -81,6 +126,7 @@ export interface DebugConsoleApi {
 	stopWatch(): boolean;
 	dumpInventory(): InventoryDebugReport;
 	explainSelectors(): SelectorDebugReport;
+	explainActivity(): ActivityDebugReport;
 }
 
 export interface DebugConsoleController {
@@ -93,6 +139,7 @@ export function mountDebugConsole(opts: {
 	forceTrim: () => ForceTrimDebugResult | null;
 	dumpInventory: () => InventoryDebugReport;
 	explainSelectors: () => SelectorDebugReport;
+	explainActivity: () => ActivityDebugReport;
 }): DebugConsoleController {
 	let watchTimer: number | null = null;
 	let watchStopTimer: number | null = null;
@@ -130,6 +177,7 @@ export function mountDebugConsole(opts: {
 				longTaskRate: metrics.longTaskRateEMA,
 				longTaskAvgMs: metrics.longTaskAvgMsEMA,
 			},
+			activity: metrics.activity,
 		});
 		console.log("raw metrics", metrics);
 		console.groupEnd();
@@ -175,10 +223,40 @@ export function mountDebugConsole(opts: {
 				},
 				derived: {
 					visibleCount: report.visibleCount,
+					contentVisibilityCount: report.contentVisibilityCount,
+				},
+				authors: {
+					user: report.authorCounts.user,
+					assistant: report.authorCounts.assistant,
+					other: report.authorCounts.other,
 				},
 			});
-			console.table(report.samples);
+			console.table(report.page);
+			console.table(report.probeCounts);
+			if (report.samples.length) console.table(report.samples);
+			if (report.candidateSamples.length) {
+				console.table(report.candidateSamples);
+			}
 			console.log("raw selector report", report);
+			console.groupEnd();
+			return report;
+		},
+		explainActivity() {
+			const report = opts.explainActivity();
+			console.groupCollapsed("[chat-cleaner] activity report");
+			console.table({
+				guard: {
+					active: report.active,
+					composing: report.composing,
+					remainingMs: report.remainingMs,
+				},
+				composer: {
+					composerCandidateCount: report.composerCandidateCount,
+					activeElementIsComposer: report.activeElementIsComposer,
+				},
+			});
+			if (report.activeElement) console.table([report.activeElement]);
+			console.log("raw activity report", report);
 			console.groupEnd();
 			return report;
 		},
@@ -223,6 +301,7 @@ export function mountDebugConsole(opts: {
 			"  __ccxDebug.forceTrim()",
 			"  __ccxDebug.dumpInventory()",
 			"  __ccxDebug.explainSelectors()",
+			"  __ccxDebug.explainActivity()",
 			"  __ccxDebug.watchMetrics(10)",
 			"  __ccxDebug.stopWatch()",
 		].join("\n"),

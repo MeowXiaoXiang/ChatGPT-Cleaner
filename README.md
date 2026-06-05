@@ -11,9 +11,9 @@
 
 Lightweight ChatGPT conversation cleaner: Keep recent messages, hide or delete older content to reduce page load.
 
-![version](https://img.shields.io/badge/version-1.1.1-2563EB)
+![version](https://img.shields.io/badge/version-2.0.0-2563EB)
 ![Manifest v3](https://img.shields.io/badge/Manifest-v3-334155)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)
 ![License](https://img.shields.io/badge/License-MIT-10B981)
 
 ---
@@ -123,12 +123,17 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 │  │
 │  ├─content               # Frontend injection scripts
 │  │      constants.ts     # Centralized tunable parameters
+│  │      activity-guard.ts # Delays automatic trims while the composer is active
 │  │      dom-utils.ts     # DOM utilities (selectors, styling, marking)
+│  │      follow-up-trims.ts # Delayed checks after init and route changes
 │  │      idle-utils.ts    # Idle callback wrapper for smooth processing
 │  │      main.ts          # Main entry point & orchestration logic
-│  │      debug.ts         # Debug-mode console API (ccx_debug=1)
+│  │      debug.ts         # Debug-mode console API
 │  │      observer.ts      # DOM mutation observer & route detection
+│  │      settings-store.ts # Extension-storage-backed runtime settings
 │  │      trim-engine.ts   # Core message hiding/deleting algorithms
+│  │      trim-scheduler.ts # Idle scheduling and adaptive debounce
+│  │      turn-inventory.ts # Turn visibility/removal tracking
 │  │      types.ts         # Shared TypeScript type definitions
 │  │      ui.ts            # UI components (floating ball, panel, toast)
 │  │
@@ -152,8 +157,9 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 ## Permissions & Privacy
 
 * Manifest v3
-* permissions: `scripting`, `tabs`
+* permissions: `scripting`, `storage`, `tabs`
 * host_permissions: `https://chat.openai.com/*`, `https://chatgpt.com/*`
+* Settings are stored in the extension's own local storage
 * Only operates on frontend DOM, does not collect or upload conversation content or personal data
 
 ---
@@ -172,6 +178,34 @@ pnpm build
 
 # Compress and package dist as zip
 pnpm zip
+```
+
+### Debug
+
+Debug mode is stored in the extension's own local storage. In DevTools, select this
+extension's content script context on a ChatGPT page, then run:
+
+```js
+await __ccxChatCleanerSetDebug(true)
+```
+
+The page reloads automatically. After reload, use:
+
+```js
+__ccxDebug.explainSelectors()
+__ccxDebug.explainActivity()
+__ccxDebug.report()
+```
+
+`explainSelectors()` reports configured selector matches plus broader page probes
+such as `#thread`, `[data-turn-id]`, message-role nodes, and composer candidates.
+`explainActivity()` verifies whether the current focused composer and recent typing
+activity are being detected.
+
+Turn debug off with:
+
+```js
+await __ccxChatCleanerSetDebug(false)
 ```
 
 ## Privacy Policy

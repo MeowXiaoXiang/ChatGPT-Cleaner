@@ -11,9 +11,9 @@
 
 輕量化清理 ChatGPT 對話：保留最新訊息，隱藏或刪除較舊內容，降低頁面負擔。
 
-![version](https://img.shields.io/badge/version-1.1.1-2563EB)
+![version](https://img.shields.io/badge/version-2.0.0-2563EB)
 ![Manifest v3](https://img.shields.io/badge/Manifest-v3-334155)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript)
 ![License](https://img.shields.io/badge/License-MIT-10B981)
 
 ---
@@ -124,12 +124,17 @@
 │  │
 │  ├─content               # 前端注入腳本
 │  │      constants.ts     # 集中化可調參數
-│  │      debug.ts         # Debug 模式 console API（ccx_debug=1）
+│  │      activity-guard.ts # 使用者輸入中延後自動清理
+│  │      debug.ts         # Debug 模式 console API
 │  │      dom-utils.ts     # DOM 工具函式（選擇器、樣式、標記）
+│  │      follow-up-trims.ts # 初始載入與路由切換後的延遲檢查
 │  │      idle-utils.ts    # 空閒時間回調封裝，確保處理順暢
 │  │      main.ts          # 主程式進入點與流程控制
 │  │      observer.ts      # DOM 變更監聽器與路由偵測
+│  │      settings-store.ts # 擴充功能專用 storage 設定讀寫
 │  │      trim-engine.ts   # 核心訊息隱藏/刪除演算法
+│  │      trim-scheduler.ts # idle 排程與自適應 debounce
+│  │      turn-inventory.ts # turn 可見/隱藏/刪除狀態追蹤
 │  │      types.ts         # 共享的 TypeScript 型別定義
 │  │      ui.ts            # UI 元件（懸浮球、面板、提示框）
 │  │
@@ -153,8 +158,9 @@
 ## 權限與隱私
 
 * Manifest v3
-* permissions: `scripting`, `tabs`
+* permissions: `scripting`, `storage`, `tabs`
 * host_permissions: `https://chat.openai.com/*`, `https://chatgpt.com/*`
+* 設定儲存在擴充功能專用的本機儲存空間
 * 僅在前端操作 DOM，不蒐集或上傳對話內容與個資。
 
 ---
@@ -173,6 +179,32 @@ pnpm build
 
 # 壓縮打包 dist 為 zip
 pnpm zip
+```
+
+### Debug
+
+Debug 模式儲存在擴充功能專用的本機儲存空間。於 ChatGPT 頁面的 DevTools 選擇本擴充功能的 content script context，然後執行：
+
+```js
+await __ccxChatCleanerSetDebug(true)
+```
+
+頁面會自動重新載入。重載後可使用：
+
+```js
+__ccxDebug.explainSelectors()
+__ccxDebug.explainActivity()
+__ccxDebug.report()
+```
+
+`explainSelectors()` 會回報目前設定的 selector 命中數，也會列出較寬的頁面探針，例如
+`#thread`、`[data-turn-id]`、message-role 節點與 composer 候選數。
+`explainActivity()` 可確認目前聚焦的 composer 與近期輸入活動是否有被偵測到。
+
+關閉 Debug：
+
+```js
+await __ccxChatCleanerSetDebug(false)
 ```
 
 ## 隱私權政策

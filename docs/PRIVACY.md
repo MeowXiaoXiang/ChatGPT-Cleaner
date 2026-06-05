@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-April 12, 2026
+May 29, 2026
 
 ## Overview
 
@@ -10,7 +10,7 @@ ChatGPT Message Cleaner ("the Extension") is committed to protecting your privac
 
 ## Information We Do NOT Collect
 
-We want to be clear: **this extension does not collect, store, transmit, or share any of your personal information or data.**
+We want to be clear: **this extension does not collect, transmit, or share any of your personal information or conversation data.**
 
 Specifically, we do not:
 
@@ -28,13 +28,15 @@ The ChatGPT Message Cleaner operates entirely locally in your browser:
 1. **Local Processing Only**: All operations are performed locally in your browser tab
 2. **DOM Manipulation**: The extension only modifies the visual display of messages on ChatGPT web pages
 3. **No Data Transmission**: No data is sent to our servers or any third-party services
-4. **No Persistent Storage**: The extension does not permanently store your conversation data
+4. **Settings Storage Only**: The extension stores its own local settings, such as mode, keep count, enabled state, notification preference, and debug flag
+5. **No Conversation Storage**: The extension does not permanently store your conversation content
 
 ## Permissions Explained
 
 The extension requests the following permissions for legitimate functionality:
 
 - **`scripting`**: Required to inject the message cleaning functionality into ChatGPT pages
+- **`storage`**: Required to store extension settings locally in your browser
 - **`tabs`**: Required to detect when you're on a ChatGPT page
 - **`host_permissions` for chatgpt.com and chat.openai.com**: Required to operate only on ChatGPT websites
 
@@ -54,7 +56,7 @@ If we make changes to this privacy policy, we will update the "Last updated" dat
 
 ## Open Source
 
-This extension is open source. You can review the complete source code to verify our privacy practices at: [https://github.com/MeowXiaoXiang/ChatGPT-Cleaner](https://github.com/MeowXiaoXiang/ChatGPT-Cleaner)
+This extension is open source. You can review the complete source code to verify our privacy practices at: [https://github.com/MeowXiaoXiang/ChatGPT-Message-Cleaner](https://github.com/MeowXiaoXiang/ChatGPT-Message-Cleaner)
 
 ## Contact
 

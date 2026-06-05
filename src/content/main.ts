@@ -22,6 +22,8 @@ import {
 	persistSettings,
 	readRuntimeFlags,
 	readSettings,
+	setCleanerEnabled,
+	setDebugEnabled,
 } from "./settings-store";
 import {
 	createDeleter,
@@ -34,6 +36,7 @@ import type { Selectors, Settings, Stats } from "./types";
 import {
 	clearDebugConsole,
 	mountDebugConsole,
+	type ActivityDebugReport,
 	type DebugConsoleController,
 	type DebugMetrics,
 	type ForceTrimDebugResult,
@@ -49,15 +52,31 @@ import {
 	SELECTOR_ALL,
 } from "./constants";
 
-(() => {
+(async () => {
 	// ---- flags ----
-	const flags = readRuntimeFlags();
+	const flags = await readRuntimeFlags();
 	const DEBUG = flags.debug;
 	const log = (...args: unknown[]) =>
 		DEBUG && console.log("[chat-cleaner]", ...args);
 
+	(window as any).__ccxChatCleanerSetDebug = async (force?: boolean) => {
+		const current = await readRuntimeFlags();
+		const next = typeof force === "boolean" ? force : !current.debug;
+		await setDebugEnabled(next);
+		location.reload();
+		return next;
+	};
+
+	(window as any).__ccxChatCleanerToggle = async (force?: "0" | "1") => {
+		const current = await readRuntimeFlags();
+		const next = force == null ? !current.enabled : force !== "0";
+		await setCleanerEnabled(next);
+		location.reload();
+		return next;
+	};
+
 	if (!flags.enabled) {
-		log("disabled via ccx_enabled=0");
+		log("disabled via extension storage enabled=false");
 		return;
 	}
 
@@ -79,9 +98,12 @@ import {
 		LIST: SEL.PRIMARY,
 		ALL: SELECTOR_ALL,
 	};
+	const COMPOSER_DEBUG_SELECTOR =
+		'textarea, input[type="text"], input[type="search"], [contenteditable="true"]';
+	const INTERNAL_UI_SELECTOR = ".ccx-ui, .ccx-toast-container, .ccx-showmore-wrap";
 
 	// ---- settings / state ----
-	const state: Settings = readSettings();
+	const state: Settings = await readSettings();
 	const stats: Stats = { domRemoved: 0 };
 
 	let maxObservedTurnCount = 0;
@@ -187,11 +209,11 @@ import {
 			mode: state.mode,
 			notify: state.notify,
 		},
-		onApply(next) {
+		async onApply(next) {
 			try {
 				const oldMode = state.mode;
 
-				const persisted = persistSettings(next);
+				const persisted = await persistSettings(next);
 				state.maxKeep = persisted.maxKeep;
 				state.mode = persisted.mode;
 				state.notify = persisted.notify;
@@ -540,6 +562,7 @@ import {
 
 	function getDebugMetrics(): DebugMetrics {
 		const inventorySnapshot = inventory.getSnapshot();
+		const activityReport = explainActivity();
 		return {
 			mode: state.mode,
 			maxKeep: state.maxKeep,
@@ -555,6 +578,13 @@ import {
 				exitRate: LT_EXIT_RATE,
 				enterAvg: LT_ENTER_AVG,
 				exitAvg: LT_EXIT_AVG,
+			},
+			activity: {
+				active: activityReport.active,
+				composing: activityReport.composing,
+				remainingMs: activityReport.remainingMs,
+				composerCandidateCount: activityReport.composerCandidateCount,
+				activeElementIsComposer: activityReport.activeElementIsComposer,
 			},
 		};
 	}
@@ -582,6 +612,113 @@ import {
 		return inventory.dumpReport();
 	}
 
+	function getTurnAuthor(el: Element): "user" | "assistant" | "other" {
+		const role =
+			el.getAttribute("data-turn") ||
+			el.getAttribute("data-message-author-role") ||
+			el.querySelector("[data-message-author-role]")?.getAttribute(
+				"data-message-author-role"
+			) ||
+			"";
+
+		if (role === "user" || role === "assistant") return role;
+		return "other";
+	}
+
+	function hasContentVisibilitySignal(el: Element): boolean {
+		const nodes = [el, ...Array.from(el.querySelectorAll("[class], [style]"))];
+
+		return nodes.some((node) => {
+			const html = node as HTMLElement;
+			const className =
+				typeof html.className === "string" ? html.className : "";
+
+			return (
+				html.style.contentVisibility === "auto" ||
+				className.includes("content-visibility:auto")
+			);
+		});
+	}
+
+	function isInternalElement(el: Element | null): boolean {
+		return !!el?.closest?.(INTERNAL_UI_SELECTOR);
+	}
+
+	function isComposerElement(el: Element | null): boolean {
+		return !!(
+			el &&
+			!isInternalElement(el) &&
+			(el.matches?.(COMPOSER_DEBUG_SELECTOR) ||
+				el.closest?.(COMPOSER_DEBUG_SELECTOR))
+		);
+	}
+
+	function sampleElement(label: string, el: Element | null) {
+		if (!el) return null;
+		return sampleElements([{ label, el }])[0] ?? null;
+	}
+
+	function getSelectorProbeCounts() {
+		return {
+			mainCount: document.querySelectorAll("main").length,
+			threadCount: document.querySelectorAll("#thread").length,
+			turnIdCount: document.querySelectorAll("[data-turn-id]").length,
+			turnAttrCount: document.querySelectorAll("[data-turn]").length,
+			messageRoleCount: document.querySelectorAll("[data-message-author-role]")
+				.length,
+			conversationTestIdCount: document.querySelectorAll(
+				'[data-testid*="conversation"]'
+			).length,
+			turnTestIdCount: document.querySelectorAll(
+				'[data-testid^="conversation-turn-"]'
+			).length,
+			sectionTurnIdCount: document.querySelectorAll("section[data-turn-id]")
+				.length,
+			articleTurnIdCount: document.querySelectorAll("article[data-turn-id]")
+				.length,
+			composerCandidateCount: document.querySelectorAll(COMPOSER_DEBUG_SELECTOR)
+				.length,
+		};
+	}
+
+	function getCandidateSamples() {
+		const items: Array<{ label: string; el: Element }> = [];
+
+		const addSamples = (label: string, selector: string, limit = 3) => {
+			items.push(
+				...Array.from(document.querySelectorAll<Element>(selector))
+					.slice(0, limit)
+					.map((el) => ({ label, el }))
+			);
+		};
+
+		addSamples("turn-id", "[data-turn-id]", 4);
+		addSamples("message-role", "[data-message-author-role]", 4);
+		addSamples("conversation-testid", '[data-testid*="conversation"]', 4);
+		addSamples("thread-main", "#thread, main", 2);
+		addSamples("composer", COMPOSER_DEBUG_SELECTOR, 2);
+
+		return sampleElements(items);
+	}
+
+	function explainActivity(): ActivityDebugReport {
+		const snapshot = activityGuard.getSnapshot();
+		const activeElement =
+			document.activeElement instanceof Element ? document.activeElement : null;
+
+		return {
+			active: snapshot.active,
+			composing: snapshot.composing,
+			activeUntil: snapshot.activeUntil,
+			remainingMs: snapshot.remainingMs,
+			composerSelector: COMPOSER_DEBUG_SELECTOR,
+			composerCandidateCount: document.querySelectorAll(COMPOSER_DEBUG_SELECTOR)
+				.length,
+			activeElementIsComposer: isComposerElement(activeElement),
+			activeElement: sampleElement("activeElement", activeElement),
+		};
+	}
+
 	function explainSelectors(): SelectorDebugReport {
 		const primary = Array.from(
 			document.querySelectorAll<Element>(SELECTORS.LIST)
@@ -597,21 +734,42 @@ import {
 			(count, el) => count + (isMarkedHidden(el) ? 1 : 0),
 			0
 		);
+		const authorCounts = combined.reduce(
+			(counts, el) => {
+				counts[getTurnAuthor(el)]++;
+				return counts;
+			},
+			{ user: 0, assistant: 0, other: 0 }
+		);
+		const contentVisibilityCount = combined.reduce(
+			(count, el) => count + (hasContentVisibilitySignal(el) ? 1 : 0),
+			0
+		);
 
 		return {
 			primarySelector: SELECTORS.LIST,
 			fallbackSelector: SEL.FALLBACK,
 			combinedSelector: SELECTORS.ALL,
+			page: {
+				href: location.href,
+				readyState: document.readyState,
+				title: document.title,
+				bodyChildCount: document.body?.childElementCount ?? 0,
+			},
 			primaryCount: primary.length,
 			fallbackCount: fallback.length,
 			combinedCount: combined.length,
+			probeCounts: getSelectorProbeCounts(),
 			hiddenMarkedCount,
 			visibleCount: combined.length - hiddenMarkedCount,
+			authorCounts,
+			contentVisibilityCount,
 			samples: sampleElements([
 				...primary.slice(0, 4).map((el) => ({ label: "primary", el })),
 				...fallback.slice(0, 4).map((el) => ({ label: "fallback", el })),
 				...combined.slice(0, 4).map((el) => ({ label: "combined", el })),
 			]),
+			candidateSamples: getCandidateSamples(),
 		};
 	}
 
@@ -622,13 +780,14 @@ import {
 			forceTrim,
 			dumpInventory,
 			explainSelectors,
+			explainActivity,
 		});
 	} else {
 		clearDebugConsole();
 	}
 
 	// 可程式化停止：釋放 observer / 註冊事件，乾淨卸載插件
-	// 快速開關：修改 localStorage 並 reload
+	// 快速開關：修改 extension storage 並 reload
 	(window as any).__ccxChatCleanerStop = () => {
 		try {
 			observerHandles.stop();
@@ -676,11 +835,5 @@ import {
 		log("stopped");
 	};
 
-	// ---- 快速開關（寫入 localStorage 後 reload）----
-	(window as any).__ccxChatCleanerToggle = (force?: "0" | "1") => {
-		const cur = localStorage.getItem("ccx_enabled") !== "0";
-		const next = force ?? (cur ? "0" : "1");
-		localStorage.setItem("ccx_enabled", next);
-		location.reload();
-	};
+	// __ccxChatCleanerToggle is installed near startup so it also works while disabled.
 })();
