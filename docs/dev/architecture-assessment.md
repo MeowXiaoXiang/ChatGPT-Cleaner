@@ -12,9 +12,20 @@ The extension is a compact Manifest V3 project.
 
 - `src/content/main.ts`
   - Owns runtime lifecycle and orchestration.
-  - Reads and writes localStorage settings.
-  - Creates UI, toast, observer, trimmer, debug console, inventory, scheduling, route
-    reset, Long Task gate, and stop/toggle globals.
+  - Creates UI, toast, observer, trimmer, debug console, route reset, Long Task gate, and
+    stop/toggle globals.
+  - Coordinates smaller runtime modules instead of owning their internal state.
+- `src/content/settings-store.ts`
+  - Owns extension-storage-backed settings reads, persistence, and normalization.
+  - Owns the debug flag used by console diagnostics.
+- `src/content/turn-inventory.ts`
+  - Owns turn visibility/removal tracking and debug inventory reports.
+- `src/content/trim-scheduler.ts`
+  - Owns idle scheduling, adaptive debounce, cancellation, and pending-after-resume state.
+- `src/content/activity-guard.ts`
+  - Delays automatic trims while the user is active in the composer.
+- `src/content/follow-up-trims.ts`
+  - Schedules conservative delayed checks after observer init and route changes.
 - `src/content/trim-engine.ts`
   - Owns hide, restore, delete, batch delete, and max-keep trimming.
   - It is already reasonably isolated from UI.
@@ -45,42 +56,44 @@ The extension is a compact Manifest V3 project.
 
 ## Main Architecture Risk
 
-`main.ts` is doing too much.
+The first extraction pass has reduced the original `main.ts` ownership risk.
 
-It is currently the owner of:
+The runtime now has clearer modules for:
 
 - settings persistence
 - inventory tracking
-- Long Task gate
 - trim scheduling
+- typing/activity delay
+- initial-load and route-change follow-up checks
+
+`main.ts` still owns:
+
+- Long Task gate
 - route-change reset
 - hide-mode baseline tracking
 - UI apply behavior
 - debug metrics
 - lifecycle cleanup
 
-This is acceptable for the current product, but it is not a good place to add typing
-guard, follow-up trim waves, API experiment state, and the future UI status model all at
-once.
-
-The risk is not that the app needs a new architecture. The risk is that future work will
-keep adding local state and timers to `main.ts` until behavior becomes hard to reason
-about.
+This is a reasonable shape for the current v2 foundation. The remaining risk is adding
+future UI status data or API experiment state directly into `main.ts` without a small
+data boundary first.
 
 ## Recommendation
 
 Do not do a large rewrite before v2.
 
-Do a small architecture pass that extracts the parts most likely to grow:
+The small architecture pass has extracted the parts most likely to grow:
 
 1. Runtime settings.
 2. Turn inventory.
 3. Trim scheduler.
 4. Activity guard.
 5. Follow-up trim scheduler.
-6. Optional delete API experiment state.
 
-This keeps `hide` and `delete` semantics stable while making room for the planned work.
+Keep `hide` and `delete` semantics stable. The next architecture boundary should be a
+small runtime status snapshot for normal UI use. Optional delete API experiment state can
+wait until after selector diagnostics and UI status are stable.
 
 ## Suggested Module Boundaries
 
@@ -88,17 +101,17 @@ This keeps `hide` and `delete` semantics stable while making room for the planne
 
 Purpose:
 
-- Read initial settings from localStorage.
+- Read initial settings from `chrome.storage.local`.
 - Persist applied settings.
 - Normalize invalid values.
 
 Should own:
 
-- `ccx_max_keep`
-- `ccx_mode`
-- `ccx_notify`
-- `ccx_enabled`
-- `ccx_debug`
+- `maxKeep`
+- `mode`
+- `notify`
+- `enabled`
+- `debug`
 
 Should not own:
 
@@ -217,15 +230,10 @@ This avoids mode explosion while still allowing aggressive behavior where it mak
 
 ## Suggested Next Steps
 
-1. Commit the docs/planning updates.
-2. Add selector stability notes from real ChatGPT pages.
-3. Extract `turn-inventory.ts` from `main.ts`.
-4. Extract `settings-store.ts` or `activity-guard.ts`.
-5. Implement Phase 2 typing/activity guard.
-6. Implement Phase 3 follow-up trims.
-7. Revisit UI redesign after runtime status data is stable.
-8. Prototype delete-mode API/history limiting only after the default runtime is clean.
-
-The first extraction should be low-risk and behavior-preserving. `turn-inventory.ts` is
-the best candidate because it has clear state and clear callbacks, and it will make debug
-status and future UI status easier to support.
+1. Add selector stability notes from real ChatGPT pages.
+2. Decide whether selector changes are needed based on that evidence.
+3. Define a runtime status snapshot for normal UI use.
+4. Add data plumbing for that snapshot before changing visible UI.
+5. Revisit the main panel status refresh after the runtime data shape is stable.
+6. Prototype delete-mode API/history limiting only after the default runtime and UI status
+   path are clean.

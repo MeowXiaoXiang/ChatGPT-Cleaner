@@ -38,7 +38,7 @@ The main logic lives in `src/content/`.
 - `trim-engine.ts`: Core hide / restore / delete behavior.
 - `observer.ts`: MutationObserver and route-change handling for ChatGPT's SPA behavior.
 - `ui.ts`: Floating control panel, toast UI, and "Show previous" behavior.
-- `debug.ts`: Debug-only console API exposed when `ccx_debug=1`.
+- `debug.ts`: Debug-only console API exposed when extension storage `debug` is enabled.
 - `dom-utils.ts`, `idle-utils.ts`, `types.ts`: Supporting utilities and shared types.
 
 Other important files:
@@ -67,7 +67,8 @@ Tune behavior through `constants.ts` first before changing logic.
 
 - Runtime diagnostics are console-only and are not exposed in the normal product UI.
 - Debug command registration is owned by `debug.ts`; `main.ts` supplies runtime metrics and actions.
-- When `localStorage.ccx_debug === "1"`, the content script exposes `__ccxDebug` in the console context.
+- When extension storage `debug === true`, the content script exposes `__ccxDebug` in the console context.
+- Use `await __ccxChatCleanerSetDebug(true)` in the extension content script context to enable debug and reload.
 
 Current debug helpers:
 
@@ -76,6 +77,7 @@ Current debug helpers:
 - `__ccxDebug.forceTrim()`
 - `__ccxDebug.dumpInventory()`
 - `__ccxDebug.explainSelectors()`
+- `__ccxDebug.explainActivity()`
 - `__ccxDebug.watchMetrics(seconds?)`
 - `__ccxDebug.stopWatch()`
 
@@ -83,6 +85,7 @@ Always-available global helpers:
 
 - `__ccxChatCleanerStop()`
 - `__ccxChatCleanerToggle(force?)`
+- `__ccxChatCleanerSetDebug(force?)`
 
 ## Project Conventions
 

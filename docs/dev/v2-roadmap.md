@@ -73,13 +73,14 @@ Completed:
 
 - Removed the in-page monitor panel.
 - Added `src/content/debug.ts`.
-- Exposed `__ccxDebug` only when `ccx_debug=1`.
+- Exposed `__ccxDebug` only when extension storage `debug` is enabled.
 - Added runtime reports:
   - `getMetrics()`
   - `report()`
   - `forceTrim()`
   - `dumpInventory()`
   - `explainSelectors()`
+  - `explainActivity()`
   - `watchMetrics()`
   - `stopWatch()`
 - Updated agent and development docs.
@@ -91,6 +92,8 @@ Acceptance baseline:
 - Manual debug API smoke test passes on ChatGPT.
 
 ## Phase 1 - Selector Stability Baseline
+
+Status: Local research baseline done; real-page spot checks still recommended.
 
 Purpose: understand current selector behavior before changing selectors.
 
@@ -108,10 +111,22 @@ Work:
 - Confirm sampled nodes are full conversation turn roots, not inner message bubbles.
 - Define criteria for accepting any new fallback selector.
 
-Expected output:
+Completed:
 
-- A short selector stability note in `docs/dev/`.
-- No runtime selector changes unless the evidence shows a concrete problem.
+- Added `docs/dev/selector-stability-notes.md` based on local rendered HTML and bundle
+  evidence under `research/`.
+- Kept the primary selector unchanged.
+- Added `section[data-turn-id][data-turn]` to the fallback selector while keeping
+  `article[data-turn-id][data-turn]` for compatibility.
+- Extended `__ccxDebug.explainSelectors()` with author distribution and
+  content-visibility signal counts.
+- Extended selector diagnostics with broader page probes and candidate samples so a
+  real-page `0` match result can distinguish unloaded routes from selector drift.
+
+Remaining validation:
+
+- Run `__ccxDebug.explainSelectors()` on representative real ChatGPT pages before any
+  broader selector work.
 
 Non-goals:
 
@@ -120,24 +135,30 @@ Non-goals:
 
 ## Phase 2 - Runtime Interaction Guard
 
+Status: Done.
+
 Purpose: reduce interference while the user is actively typing or interacting with the composer.
 
 Integration policy: focused commit on `codex/v2`.
 
-Candidate work:
+Completed:
 
-- Add a lightweight typing/activity guard.
-- Delay automatic trim while recent text input is detected.
-- Keep manual actions working:
+- Added `src/content/activity-guard.ts`.
+- Automatic trims are delayed while recent composer input, paste, focus, or composition
+  activity is detected.
+- Added `__ccxDebug.explainActivity()` and activity data in `getMetrics()` so live
+  pages can confirm composer detection instead of assuming it works.
+- Manual actions still bypass the guard:
   - Apply should still schedule trim.
   - `__ccxDebug.forceTrim()` should still run immediately.
-- Keep the guard independent from LongTask suspension.
+- The guard stays independent from LongTask suspension.
 
-Design questions to resolve before implementation:
+Implementation decisions:
 
-- Typing cooldown duration.
-- Which input surfaces count as composer activity.
-- Whether paste/composition events need explicit handling.
+- The first pass uses a short cooldown with a small retry padding.
+- Composer activity is detected through text inputs, textareas, search inputs, and
+  editable content.
+- Internal extension UI is ignored so panel interaction does not block trim scheduling.
 
 Non-goals:
 
@@ -146,22 +167,26 @@ Non-goals:
 
 ## Phase 3 - Initial Load Follow-Up Trims
 
+Status: Done.
+
 Purpose: handle long conversations that render in waves after initial load or route changes.
 
 Integration policy: focused commit on `codex/v2`.
 
-Candidate work:
+Completed:
 
-- Schedule a small number of follow-up trim checks after observer init and route changes.
-- Keep the schedule conservative and cancellable.
-- Respect existing LongTask suspension and wake cooldown behavior.
-- Log scheduling only under debug mode.
+- Added `src/content/follow-up-trims.ts`.
+- Observer init and route changes schedule a conservative set of delayed checks.
+- Route changes and shutdown cancel outstanding follow-up timers.
+- Follow-up checks call through the existing automatic trim path instead of directly
+  trimming DOM.
 
-Design questions to resolve before implementation:
+Implementation decisions:
 
-- Exact delay sequence.
-- Whether delete mode and hide mode should share the same follow-up schedule.
-- How follow-up trims interact with `maxObservedTurnCount` in hide mode.
+- The first pass uses checks at 800ms, 1800ms, 3500ms, and 6000ms.
+- Both modes share the same follow-up scheduler, while mode-specific behavior stays in
+  the existing trim path.
+- Hide mode still uses the current observed-count baseline before trimming.
 
 Non-goals:
 
@@ -268,12 +293,18 @@ Non-goals:
 
 Recommended next action:
 
-1. Commit the current planning docs.
-2. Run selector diagnostics on several real ChatGPT conversations.
-3. Record findings in a `docs/dev/selector-stability-notes.md` file.
-4. Decide whether `section[data-turn-id]` should join the supported selector set.
-5. Do a small behavior-preserving architecture extraction, starting with turn inventory.
-6. Implement the Phase 2 typing/activity guard.
+1. Run real-page selector spot checks with
+   `__ccxDebug.explainSelectors()` and `__ccxDebug.explainActivity()`.
+2. Append any new findings to `docs/dev/selector-stability-notes.md`.
+3. Define a small runtime status snapshot for the normal UI:
+   - mode
+   - maxKeep
+   - visibleCount
+   - hiddenCount
+   - removedCount
+   - suspended
+4. Add a focused data-plumbing commit for that status snapshot before changing panel UI.
+5. Revisit the main panel status refresh after the runtime snapshot is stable.
 
-After Phase 2 and Phase 3 are stable, revisit the optional delete-mode API/history
-limiting experiment in `docs/dev/delete-api-experiment-plan.md`.
+Keep the optional delete-mode API/history limiting experiment parked until selector
+behavior and normal UI status are both stable.
