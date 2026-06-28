@@ -1,6 +1,11 @@
 # Architecture Assessment
 
-Date: 2026-05-23
+Updated: 2026-06-28
+
+> [!IMPORTANT]
+> Historical note for the unreleased `codex/v2` branch. Development was discontinued
+> after live testing confirmed that DOM cleanup conflicts with ChatGPT's native
+> conversation virtualization. This is not an active architecture plan.
 
 This note records the current project architecture and whether it is ready for the v2
 track: selector hardening, typing/activity guard, follow-up trims, UI refresh, and an
@@ -26,11 +31,16 @@ The extension is a compact Manifest V3 project.
   - Delays automatic trims while the user is active in the composer.
 - `src/content/follow-up-trims.ts`
   - Schedules conservative delayed checks after observer init and route changes.
+- `src/content/load-readiness.ts`
+  - Classifies conversation hydration and native virtualization readiness before
+    product-level DOM mutation.
+- `src/content/long-task-gate.ts`
+  - Owns Long Task sampling, EMA pressure state, hysteresis, and transition reporting.
 - `src/content/trim-engine.ts`
   - Owns hide, restore, delete, batch delete, and max-keep trimming.
   - It is already reasonably isolated from UI.
 - `src/content/observer.ts`
-  - Owns MutationObserver, container discovery, route rebind, and internal UI filtering.
+  - Owns MutationObserver, `#thread` discovery, route rebind, and internal UI filtering.
   - It already returns a small handle interface.
 - `src/content/ui.ts`
   - Owns floating panel, toast, tooltip, and show-more button.
@@ -38,6 +48,9 @@ The extension is a compact Manifest V3 project.
 - `src/content/debug.ts`
   - Owns console-only debug API registration.
   - `main.ts` supplies runtime data providers.
+- `src/content/runtime-diagnostics.ts`
+  - Owns read-only DOM probes for selectors, composer activity, and virtualization.
+  - Keeps probe selectors and report assembly out of the runtime entrypoint.
 - `src/content/dom-utils.ts`
   - Owns DOM marking and query helpers.
 - `src/background/background.ts`
@@ -66,18 +79,22 @@ The runtime now has clearer modules for:
 - typing/activity delay
 - initial-load and route-change follow-up checks
 
-`main.ts` still owns:
+The load-readiness boundary now separates first-turn appearance from safe trim timing.
+The observer watches the route-scoped thread instead of one per-turn wrapper, so sibling
+turn hydration contributes to readiness and inventory updates.
 
-- Long Task gate
+`main.ts` still coordinates:
+
 - route-change reset
 - hide-mode baseline tracking
 - UI apply behavior
 - debug metrics
 - lifecycle cleanup
 
-This is a reasonable shape for the current v2 foundation. The remaining risk is adding
-future UI status data or API experiment state directly into `main.ts` without a small
-data boundary first.
+This is a reasonable shape for the current v2 foundation. Long Task sampling and load
+readiness have their own lifecycle modules; future API experiment state must keep the
+same separation. UI remains consolidated until an actual interface redesign makes a
+split useful.
 
 ## Recommendation
 
@@ -91,11 +108,36 @@ The small architecture pass has extracted the parts most likely to grow:
 4. Activity guard.
 5. Follow-up trim scheduler.
 
-Keep `hide` and `delete` semantics stable. The next architecture boundary should be a
-small runtime status snapshot for normal UI use. Optional delete API experiment state can
-wait until after selector diagnostics and UI status are stable.
+Keep `hide` and `delete` product semantics stable and route both through the readiness
+gate. The next architecture boundary should be a small runtime status snapshot for
+normal UI use. Optional delete API response replacement must wait until the default
+runtime passes real-page stability checks.
 
 ## Suggested Module Boundaries
+
+### `load-readiness.ts`
+
+Purpose:
+
+- Distinguish first-turn appearance from stable conversation readiness.
+- Detect native logical wrappers and offscreen placeholders.
+- Hold trim requests until the route-scoped conversation surface is safe.
+
+Should own:
+
+- readiness state and wait reasons
+- relevant mutation quiet time
+- consecutive stable samples
+- native virtualization detection
+- pending callbacks
+- route reset, diagnostics, and disposal
+
+Should not own:
+
+- trim policy
+- DOM hide/delete operations
+- UI rendering
+- fetch interception
 
 ### `settings-store.ts`
 
@@ -220,9 +262,10 @@ The product can keep the same two modes:
 
 - `hide`
   - Keep current semantics.
-  - Add typing guard and follow-up trim safety.
+  - Keep typing, follow-up, and load-readiness safety independent.
 - `delete`
-  - Keep current DOM delete semantics.
+  - Keep current product meaning, but do not mutate DOM before readiness.
+  - Re-evaluate direct React-owned node removal against native turn virtualization.
   - Later allow an experimental API/history limiter as an extra delete-mode accelerator.
   - The experiment must be opt-in and self-disabling.
 
@@ -230,10 +273,9 @@ This avoids mode explosion while still allowing aggressive behavior where it mak
 
 ## Suggested Next Steps
 
-1. Add selector stability notes from real ChatGPT pages.
-2. Decide whether selector changes are needed based on that evidence.
+1. Validate the implemented quiet/stable readiness rule on real ChatGPT pages.
+2. Verify route reuse, long-thread scrolling, streaming, and background resume.
 3. Define a runtime status snapshot for normal UI use.
 4. Add data plumbing for that snapshot before changing visible UI.
-5. Revisit the main panel status refresh after the runtime data shape is stable.
-6. Prototype delete-mode API/history limiting only after the default runtime and UI status
-   path are clean.
+5. Prototype only observe-mode API classification and fixture tooling until the default
+   runtime is stable.

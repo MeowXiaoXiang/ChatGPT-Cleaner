@@ -86,6 +86,11 @@ export function isMarkedHidden(el: Element): boolean {
 	return (el as HTMLElement).dataset.ccxHidden === "1";
 }
 
+/** Native virtualization 可能保留空 turn shell；有子元素才視為已掛載內容。 */
+export function hasMountedTurnContent(el: Element | null | undefined): boolean {
+	return !!el && el.childElementCount > 0;
+}
+
 // 標記元素為隱藏（不可見、不可互動）
 export function markHidden(el: Element): void {
 	const html = el as HTMLElement;
@@ -152,6 +157,11 @@ export function unmarkInert(el: Element): void {
 // 回傳目前所有「可見」元素
 export function getVisibleBySelector(allSelector: string): Element[] {
 	return $$(allSelector).filter((el) => !isMarkedHidden(el));
+}
+
+/** 只回傳目前有實際內容、且未被 extension 隱藏的 turn。 */
+export function getVisibleMountedBySelector(allSelector: string): Element[] {
+	return getVisibleBySelector(allSelector).filter(hasMountedTurnContent);
 }
 
 // 回傳目前所有「已隱藏」元素

@@ -10,15 +10,18 @@
 //   - Panel 只回傳設定，不持有 runtime 狀態。
 // ------------------------------------------------------------
 
-import { TOAST, SHOW_MORE } from "./constants";
-import { CLS, getHiddenBySelector, getVisibleBySelector } from "./dom-utils";
+import { TOAST, SHOW_MORE, UI_TIMING } from "./constants";
+import {
+	CLS,
+	getHiddenBySelector,
+	getVisibleMountedBySelector,
+} from "./dom-utils";
 import type {
 	I18nFn,
 	Mode,
 	ApplyPayload,
 	TrimResult,
 	ToastKind,
-	Trimmer,
 	Ref,
 } from "./types";
 
@@ -566,7 +569,7 @@ export function mountUI(opts: {
 			setTimeout(() => {
 				applyBtn.textContent = oldText;
 				applyBtn.disabled = false;
-			}, 1200);
+			}, UI_TIMING.APPLY_FEEDBACK_MS);
 		} catch {
 			// 錯誤處理交由上層決定是否以 Toast 呈現
 		}
@@ -582,7 +585,7 @@ export function mountUI(opts: {
 			if (!document.body.contains(root)) {
 				document.body.appendChild(root);
 			}
-		}, 200);
+		}, UI_TIMING.ROOT_GUARD_DELAY_MS);
 	});
 	guard.observe(document.body, { childList: true, subtree: false });
 
@@ -629,14 +632,14 @@ export function mountUI(opts: {
 export function mountShowMore(opts: {
 	T: I18nFn;
 	selectorAll: string; // 例如 SELECTORS.ALL
-	trimmer: Trimmer;
+	onShowMore: (onDone: () => void) => void;
 	modeRef: Ref<Mode>; // ()=>state.mode
 	maxKeepRef: Ref<number>; // ()=>state.maxKeep
 }) {
-	const { T, selectorAll, trimmer, modeRef, maxKeepRef } = opts;
+	const { T, selectorAll, onShowMore, modeRef, maxKeepRef } = opts;
 	let wrapper: HTMLDivElement | null = null;
 	let prevHiddenCount = -1;
-	
+
 	// 節流控制：避免頻繁更新 DOM
 	let updateTimer: ReturnType<typeof setTimeout> | null = null;
 	// 節流控制（從 constants.ts 導入）
@@ -653,10 +656,10 @@ export function mountShowMore(opts: {
 		if (modeRef() !== "hide") return removeIfAny();
 
 		const hidden = getHiddenBySelector(selectorAll);
-		
+
 		// 無隱藏訊息時移除按鈕
 		if (!hidden.length) return removeIfAny();
-		
+
 		// hidden 數量未變更且已有 wrapper → 直接早退
 		if (wrapper && hidden.length === prevHiddenCount) return;
 		prevHiddenCount = hidden.length;
@@ -681,17 +684,18 @@ export function mountShowMore(opts: {
 			"hidden"
 		)})`;
 		btn.onclick = () => {
-			trimmer.showMoreMessages();
-			// 使用節流的 update，避免閃爍
-			if (updateTimer) clearTimeout(updateTimer);
-			updateTimer = setTimeout(() => {
-				updateTimer = null;
-				update();
-			}, 50);
+			onShowMore(() => {
+				// 使用節流的 update，避免閃爍
+				if (updateTimer) clearTimeout(updateTimer);
+				updateTimer = setTimeout(() => {
+					updateTimer = null;
+					update();
+				}, UI_TIMING.SHOW_MORE_CLICK_DELAY_MS);
+			});
 		};
 		wrapper.appendChild(btn);
 
-		const firstVisible = getVisibleBySelector(selectorAll)[0];
+		const firstVisible = getVisibleMountedBySelector(selectorAll)[0];
 		if (!firstVisible) {
 			// 沒有可見訊息：避免插入造成位置漂移
 			removeIfAny();
@@ -706,13 +710,13 @@ export function mountShowMore(opts: {
 	function update() {
 		// 節流：避免短時間內多次更新
 		if (updateTimer) return;
-		
+
 		updateTimer = setTimeout(() => {
 			updateTimer = null;
 			insert();
 		}, UPDATE_THROTTLE_MS);
 	}
-	
+
 	// 立即更新（跳過節流）
 	function forceUpdate() {
 		if (updateTimer) {

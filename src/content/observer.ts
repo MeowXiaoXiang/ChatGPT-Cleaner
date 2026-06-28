@@ -2,7 +2,7 @@
 // Chat Cleaner - DOM Observer
 // ------------------------------------------------------------
 // 職責:
-//   - 尋找 ChatGPT 訊息容器並附掛 MutationObserver。
+//   - 尋找 ChatGPT route-scoped thread 並附掛 MutationObserver。
 //   - 偵測 SPA route 變化並重新綁定容器。
 //   - 過濾 extension UI 造成的 mutation，避免誤觸發上游排程。
 //
@@ -17,7 +17,7 @@ import type {
 	ObserverHandles,
 	TurnMutationBatch,
 } from "./types";
-import { UI_SELECTORS } from "./constants";
+import { OBSERVER, PAGE_SELECTORS, UI_SELECTORS } from "./constants";
 
 // 需忽略的內部 UI 節點（從 constants.ts 導入）
 const INTERNAL_UI_IGNORE_SELECTOR = UI_SELECTORS.INTERNAL.join(",");
@@ -45,7 +45,7 @@ function recordIsInternalOnly(m: MutationRecord): boolean {
 }
 
 export function createObserverHandles(
-	deps: CreateObserverDeps & { onRouteChange?: () => void }
+	deps: CreateObserverDeps
 ): ObserverHandles {
 	const {
 		selectors,
@@ -64,15 +64,37 @@ export function createObserverHandles(
 	let routeWatchersInstalled = false;
 	let lastURL = location.href;
 	let pendingRouteContainer: Element | null = null;
+	let pendingRouteTurnIds: Set<string> | null = null;
 
-	// Rebind 節流 (80ms)
+	// Rebind 節流
 	let rebindTimer: number | null = null;
 	function scheduleRebind() {
-		if (rebindTimer) return;
+		if (rebindTimer != null) return;
 		rebindTimer = window.setTimeout(() => {
 			rebindTimer = null;
 			start();
-		}, 80);
+		}, OBSERVER.REBIND_DELAY_MS);
+	}
+
+	function findMessageContainer(turn: Element): Element | null {
+		return turn.closest(PAGE_SELECTORS.THREAD);
+	}
+
+	function getTurnIdentity(turn: Element): string {
+		return (
+			turn.getAttribute("data-turn-id") ||
+			turn.getAttribute("data-testid") ||
+			""
+		);
+	}
+
+	function captureTurnIds(container: Element | null): Set<string> {
+		const ids = new Set<string>();
+		container?.querySelectorAll<Element>(selectors.ALL).forEach((turn) => {
+			const id = getTurnIdentity(turn);
+			if (id) ids.add(id);
+		});
+		return ids;
 	}
 
 	// rAF 合批 (同一畫格收斂 mutation)
@@ -181,22 +203,44 @@ export function createObserverHandles(
 	// 等待訊息容器出現（一次性）
 	function waitForMessageContainerOnce(
 		onReady: (container: Element) => void,
-		opts: { skipContainer?: Element | null } = {}
+		opts: {
+			skipContainer?: Element | null;
+			skipTurnIds?: ReadonlySet<string> | null;
+		} = {}
 	) {
-		const firstTurn = document.querySelector(
-			selectors.ALL
-		) as Element | null;
-		const firstParent = firstTurn?.parentElement ?? null;
-		if (firstParent && firstParent !== opts.skipContainer) {
+		const isFreshTurn = (turn: Element) => {
+			const container = findMessageContainer(turn);
+			if (!container) return false;
+			if (container !== opts.skipContainer) return true;
+			const id = getTurnIdentity(turn);
+			return !!id && !opts.skipTurnIds?.has(id);
+		};
+		const findFreshTurn = (root: Element): Element | null => {
+			if (root.matches?.(selectors.ALL) && isFreshTurn(root)) return root;
+			return (
+				Array.from(root.querySelectorAll<Element>(selectors.ALL)).find(
+					isFreshTurn
+				) ?? null
+			);
+		};
+
+		const firstTurn = Array.from(
+			document.querySelectorAll<Element>(selectors.ALL)
+		).find(isFreshTurn);
+		const firstContainer = firstTurn ? findMessageContainer(firstTurn) : null;
+		if (firstContainer) {
 			pendingRouteContainer = null;
-			onReady(firstParent);
+			pendingRouteTurnIds = null;
+			onReady(firstContainer);
 			onInit();
 			return;
 		}
 
 		pendingNavWaiter?.disconnect();
 
-		const fallback = (document.querySelector("main") ||
+		const currentThread = document.querySelector(PAGE_SELECTORS.THREAD);
+		const fallback = ((currentThread !== opts.skipContainer && currentThread) ||
+			document.querySelector("main") ||
 			document.body) as Element;
 		pendingNavWaiter = new MutationObserver((muts) => {
 			for (const m of muts) {
@@ -205,20 +249,18 @@ export function createObserverHandles(
 					if (!n || n.nodeType !== 1) continue;
 					if (isInternalUI(n)) continue;
 
-					const turn = n.matches?.(selectors.ALL)
-						? n
-						: n.querySelector?.(selectors.ALL);
+					const turn = findFreshTurn(n);
 					if (!turn) continue;
 
-					const parent = (turn as Element).parentElement;
-					if (!parent) continue;
-					if (parent === opts.skipContainer) continue;
+					const container = findMessageContainer(turn as Element);
+					if (!container) continue;
 
 					pendingNavWaiter?.disconnect();
 					pendingNavWaiter = null;
 
 					pendingRouteContainer = null;
-					onReady(parent);
+					pendingRouteTurnIds = null;
+					onReady(container);
 					onInit();
 					return;
 				}
@@ -230,9 +272,11 @@ export function createObserverHandles(
 	// 啟動：尋找容器並附掛 observer
 	function start() {
 		const skipContainer = pendingRouteContainer;
+		const skipTurnIds = pendingRouteTurnIds;
 		stopCore();
 		waitForMessageContainerOnce((container) => attach(container), {
 			skipContainer,
+			skipTurnIds,
 		});
 	}
 
@@ -266,11 +310,13 @@ export function createObserverHandles(
 		window.removeEventListener("hashchange", onMaybeRouteChange);
 		routeWatchersInstalled = false;
 
-		if (rebindTimer) {
+		if (rebindTimer != null) {
 			clearTimeout(rebindTimer);
 			rebindTimer = null;
 		}
 		currentTarget = null;
+		pendingRouteContainer = null;
+		pendingRouteTurnIds = null;
 		lastURL = location.href;
 	}
 
@@ -288,13 +334,14 @@ export function createObserverHandles(
 
 		if (routeWatcher) routeWatcher.disconnect();
 		routeWatcher = new MutationObserver(() => {
-		if (location.href !== lastURL) {
-			lastURL = location.href;
-			log("URL mutated → rebind when container appears");
-			pendingRouteContainer = currentTarget;
-			scheduleRebind();
-			onRouteChange?.();
-		}
+			if (location.href !== lastURL) {
+				lastURL = location.href;
+				log("URL mutated → rebind when container appears");
+				pendingRouteContainer = currentTarget;
+				pendingRouteTurnIds = captureTurnIds(currentTarget);
+				scheduleRebind();
+				onRouteChange?.();
+			}
 		});
 		routeWatcher.observe(document, { childList: true, subtree: true });
 	}
@@ -305,6 +352,7 @@ export function createObserverHandles(
 			lastURL = location.href;
 			log("URL changed → rebind");
 			pendingRouteContainer = currentTarget;
+			pendingRouteTurnIds = captureTurnIds(currentTarget);
 			scheduleRebind();
 			onRouteChange?.();
 		}

@@ -10,8 +10,7 @@
 // ------------------------------------------------------------
 
 import type { LogFn } from "./types";
-
-const DEFAULT_DELAYS_MS = [800, 1800, 3500, 6000] as const;
+import { FOLLOW_UP_TRIMS } from "./constants";
 
 export interface FollowUpTrims {
 	schedule(reason: string): void;
@@ -24,7 +23,7 @@ export function createFollowUpTrims(opts: {
 	runCheck: (reason: string) => void;
 	delaysMs?: readonly number[];
 }): FollowUpTrims {
-	const { log, runCheck, delaysMs = DEFAULT_DELAYS_MS } = opts;
+	const { log, runCheck, delaysMs = FOLLOW_UP_TRIMS.DELAYS_MS } = opts;
 	const timers = new Set<ReturnType<typeof setTimeout>>();
 
 	function cancel() {

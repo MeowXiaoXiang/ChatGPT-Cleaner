@@ -16,7 +16,7 @@ import {
 	isMarkedHidden,
 	markHidden,
 	unmarkHidden,
-	getVisibleBySelector,
+	getVisibleMountedBySelector,
 	getHiddenBySelector,
 	shortSelector,
 } from "./dom-utils";
@@ -24,7 +24,6 @@ import { requestIdle } from "./idle-utils";
 import type {
 	CreateTrimmerDeps,
 	Mode,
-	Stats,
 	TrimResult,
 	Trimmer,
 	LogFn,
@@ -47,7 +46,6 @@ const SLICE_LOWER_MS = BATCH.SLICE_LOWER_MS;
 /** 直接從 DOM 刪除訊息節點，並更新統計數據 */
 export function createDeleter(
 	log: LogFn,
-	stats: Stats,
 	onDelete?: (el: Element, wasHidden: boolean) => void
 ) {
 	return function deleteMsg(el: Element) {
@@ -67,7 +65,6 @@ export function createDeleter(
 
 		onDelete?.(html, wasHidden);
 		html.remove();
-		stats.domRemoved++;
 		log("deleteMsg -> DOM removed", sig);
 	};
 }
@@ -108,9 +105,8 @@ export function restoreMsg(
 
 /**
  * Idle 分段刪除，依耗時自動調整批量大小：
- * - 單批耗時 >30ms : 減少批量
- * - 單批耗時 <8ms  : 增加批量
- * - timeRemaining() 缺失時，預設 12ms
+ * - 單批耗時超過 / 低於 BATCH 閾值時調整批量
+ * - timeRemaining() 缺失時使用 BATCH fallback
  * - onBatch：每批回報
  * - onDone：完成回報
  */
@@ -137,23 +133,30 @@ export function batchDelete(
 	}
 
 	let i = 0;
-	let chunkSize = CHUNK_INIT; // 起始批量
+	let chunkSize: number = CHUNK_INIT; // 起始批量
 	log(`batchDelete: start (${unique.length} nodes)`);
 
 	function runSlice(deadline?: IdleDeadline) {
 		const sliceStart = performance.now();
 
 		const hasTR = typeof deadline?.timeRemaining === "function";
-		const tr = hasTR ? (deadline as IdleDeadline).timeRemaining() : 12;
+		const tr = hasTR
+			? (deadline as IdleDeadline).timeRemaining()
+			: BATCH.FALLBACK_TIME_REMAINING_MS;
 
 		// 根據剩餘數量微調單 slice 的時間上限：大量時稍微放寬，但仍保守
 		const remain = unique.length - i;
-		// 基本上限 20ms；>1000 擴到 26ms；>5000 擴到 32ms
-		let maxBudget = 20;
-		if (remain > 5000) maxBudget = 32;
-		else if (remain > 1000) maxBudget = 26;
+		let maxBudget: number = BATCH.BUDGET_BASE_MS;
+		if (remain > BATCH.HUGE_REMAINING_THRESHOLD) {
+			maxBudget = BATCH.BUDGET_HUGE_MS;
+		} else if (remain > BATCH.LARGE_REMAINING_THRESHOLD) {
+			maxBudget = BATCH.BUDGET_LARGE_MS;
+		}
 
-		const budgetMs = Math.max(6, Math.min(maxBudget, tr || 12));
+		const budgetMs = Math.max(
+			BATCH.BUDGET_MIN_MS,
+			Math.min(maxBudget, tr || BATCH.FALLBACK_TIME_REMAINING_MS)
+		);
 
 		let processed = 0;
 
@@ -185,14 +188,14 @@ export function batchDelete(
 		}
 
 		if (i < unique.length) {
-			requestIdle(runSlice as any, { timeout: 24 });
+			requestIdle(runSlice as any, { timeout: BATCH.IDLE_TIMEOUT_MS });
 		} else {
 			log(`batchDelete: all done (${unique.length} total removed)`);
 			onDone?.();
 		}
 	}
 
-	requestIdle(runSlice as any, { timeout: 24 });
+	requestIdle(runSlice as any, { timeout: BATCH.IDLE_TIMEOUT_MS });
 }
 
 /* ---------------------- */
@@ -216,7 +219,10 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 
 	// 動態決定批次刪除門檻（依 maxKeep 調整）
 	function getBulkDeleteThreshold(): number {
-		return Math.max(10, Math.floor(maxKeepRef() / 2));
+		return Math.max(
+			BATCH.BULK_THRESHOLD_MIN,
+			Math.floor(maxKeepRef() / BATCH.BULK_THRESHOLD_DIVISOR)
+		);
 	}
 
 	// 若 StormGate 暫停，無論模式一律改為 hide，避免刪除造成額外壓力
@@ -281,7 +287,7 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 		}
 
 		// 控制可見數量
-		let visible = getVisibleBySelector(ALL);
+		const visible = getVisibleMountedBySelector(ALL);
 		const excess = Math.max(0, visible.length - maxKeepRef());
 
 		if (excess > 0) {
@@ -325,7 +331,7 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 		// ----------------------------------------------------------------
 		// 原始邏輯（已移除）：
 		// if (modeRef() === "hide") {
-		//     visible = getVisibleBySelector(ALL);
+		//     const visible = getVisibleMountedBySelector(ALL);
 		//     let deficit = Math.max(0, maxKeepRef() - visible.length);
 		//     if (deficit > 0) { ... restoreMsg ... }
 		// }
@@ -361,7 +367,7 @@ export function createTrimmer(deps: CreateTrimmerDeps): Trimmer {
 
 // 輔助查詢：直接取可見/隱藏訊息
 export function getVisible(ALL_SELECTOR: string): Element[] {
-	return getVisibleBySelector(ALL_SELECTOR);
+	return getVisibleMountedBySelector(ALL_SELECTOR);
 }
 export function getHidden(ALL_SELECTOR: string): Element[] {
 	return getHiddenBySelector(ALL_SELECTOR);

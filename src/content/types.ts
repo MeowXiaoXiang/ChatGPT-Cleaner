@@ -31,30 +31,6 @@ export interface Settings {
 }
 
 /**
- * 統計數據：目前追蹤實際從 DOM 移除的節點數量。
- * 可視需求擴充（例如隱藏/還原次數、批次刪除耗時等）。
- */
-export interface Stats {
-	/** 自啟動以來，累計被 remove() 的節點數 */
-	domRemoved: number;
-}
-
-/**
- * Trim 調度/節流相關狀態。
- * - delay：目前動態決定的 debounce 時間
- * - min/max：delay 的上下界
- * - emaAlpha：EMA 平滑係數
- * - trimAvgMs：最近平均單次 trim 成本（毫秒）
- */
-export interface DebounceState {
-	delay: number;
-	min: number;
-	max: number;
-	emaAlpha: number;
-	trimAvgMs: number;
-}
-
-/**
  * 一次 trim 執行後的結果摘要，供 UI 顯示用。
  */
 export interface TrimResult {

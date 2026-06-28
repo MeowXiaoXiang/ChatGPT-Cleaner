@@ -1,34 +1,27 @@
 # Selector Stability Notes
 
-Date: 2026-05-29
+Updated: 2026-06-28
 
-This note records the current selector evidence for the v2 runtime line. It uses the
-local ChatGPT capture under `research/` first, because that folder includes both rendered
-HTML and downloaded bundle chunks from the current page shape.
+> [!IMPORTANT]
+> Historical selector note for the unreleased `codex/v2` branch. It records the page
+> shape that led to discontinuing the project and is not an active compatibility target.
 
-## Sources
+This note records the public selector decisions for the v2 runtime and omits private
+evidence detail.
 
-- `research/chatgpt.com.html`
-- `research/bundle/*.js`
-- `research/chatgpt-bundle-research-notes.md`
+## Development Scope
 
-## Local HTML Evidence
+The development docs should contain:
 
-The captured HTML includes rendered conversation turns, not only the SSR shell.
+- stable DOM conclusions
+- selector acceptance criteria
+- diagnostic procedures
+- implementation decisions
 
-Observed counts from `research/chatgpt.com.html`:
+## Mounted Turn Root
 
-- `section[data-turn-id]`: 8
-- `article[data-turn-id]`: 0
-- `data-testid="conversation-turn-*"`: 8
-- `data-turn="user"`: 4
-- `data-turn="assistant"`: 4
-- `data-message-author-role="user"`: 4
-- `data-message-author-role="assistant"`: 5
-- `[content-visibility:auto]`: 8
-- `id="thread"`: 1
-
-The current turn root shape is:
+Current local evidence still shows mounted conversation turns as `section` elements
+with all of these attributes:
 
 ```html
 <section
@@ -39,94 +32,95 @@ The current turn root shape is:
 >
 ```
 
-This means the current primary selector still works, but the existing fallback that only
-matched `article[data-turn-id][data-turn]` did not cover this captured page shape.
-
-## Bundle Evidence
-
-The strongest bundle signal is in
-`research/bundle/8b34dbc2-juezr0qyl4clei09.65818bdfe768.js`.
-
-The bundle constructs turn roots as React `section` elements with these attributes:
-
-- `data-turn-id`
-- `data-turn-id-container`
-- `data-testid`
-- `data-scroll-anchor`
-- `data-turn`
-
-The same bundle also contains:
-
-- direct lookup by `[data-turn-id="${CSS.escape(id)}"]`
-- generated `conversation-turn-${...}` test IDs
-- `document.getElementById("thread")`
-- `[data-turn="user"]` lookups under the thread
-- conditional `[content-visibility:auto]` and intrinsic-size classes
-
-## Decision
-
 Keep the primary selector unchanged:
 
 ```ts
 [data-testid^="conversation-turn-"]
 ```
 
-Update the fallback selector to include both current and older plausible turn roots:
+Keep the conservative fallback:
 
 ```ts
-section[data-turn-id][data-turn], article[data-turn-id][data-turn]
+section[data-turn-id][data-turn]
 ```
 
-The fallback remains conservative because it requires both a stable turn ID and an
-explicit `data-turn` role marker. It does not add broad selectors such as every
-`[data-turn-id]`, so inner message or utility nodes should not be pulled into the trim
-unit accidentally.
+v2 does not retain the older `article` compatibility branch. The fallback intentionally
+requires both a stable turn ID and an explicit turn role. Do not broaden it to every
+`[data-turn-id]`, generic `section`, `article`, or `div`.
+
+## Native Turn Virtualization
+
+Current ChatGPT builds can wrap logical turns in an outer element with:
+
+- `data-turn-id-container`
+- `data-is-intersecting`
+
+Older offscreen turn content can be unmounted while the outer wrapper preserves an
+estimated height. Recent, intersecting, or forced turns remain mounted.
+
+Consequences:
+
+- Configured selector counts describe mounted turn sections, not total logical history.
+- A normal scroll can remove and later recreate a matching turn section.
+- A mounted-section removal is not necessarily a conversation deletion.
+- The outer wrapper is evidence for diagnostics and load readiness, but it is not yet an
+  accepted trim/delete unit.
+
+Do not switch the trim selector to the outer wrapper until load stability, scroll
+geometry, restoration semantics, and React ownership have been tested separately.
+
+## Native Content Visibility
+
+Assistant turns may also receive conditional native `content-visibility:auto` and an
+intrinsic-size class. This signal is feature- and state-dependent, so it may be present
+in one build while absent from a particular rendered DOM sample.
+
+Extension CSS should coexist with native optimization. Do not blanket-override native
+content visibility or intrinsic sizing.
+
+## Composer Activity Surface
+
+The v2 page contract uses the current prompt surfaces:
+
+- `#prompt-textarea`
+- `textarea[name="prompt-textarea"]`
+- editable content inside `form[data-type="unified-composer"]`
+
+Generic text/search inputs are intentionally excluded so sidebar search does not satisfy
+conversation readiness or activity detection.
+- IME composition
+- paste, input, keydown, and focus activity
 
 ## Debug Follow-Up
 
-`__ccxDebug.explainSelectors()` now reports:
+`__ccxDebug.explainSelectors()` currently reports mounted selector matches and broader
+page probes. Interpret those counts as mounted DOM inventory only.
 
-- primary, fallback, and combined match counts
-- broader page probes such as `#thread`, `[data-turn-id]`, `[data-turn]`,
-  `[data-message-author-role]`, and conversation-related test IDs
-- hidden and visible counts
-- author distribution
-- content-visibility signal count
-- sampled turn attributes and candidate attributes when configured selectors miss
+The diagnostics additionally report:
 
-Use this on real pages before any broader selector work:
+- native wrapper count
+- intersecting wrapper count
+- placeholder wrapper count
+- mounted configured-turn count
+- whether native turn virtualization is detected
+- current load-readiness state
+
+Use the current helpers on representative pages:
 
 ```js
 __ccxDebug.explainSelectors()
-```
-
-If configured selector counts are `0`, inspect `probeCounts`:
-
-- `turnIdCount` or `messageRoleCount` greater than `0` means ChatGPT still exposes
-  usable conversation anchors, but the configured turn-root selector may need a
-  narrower update.
-- `threadCount` greater than `0` with no turn/message counts usually means the route
-  shell is present but turns are not loaded or hydrated yet.
-- all conversation probes at `0` usually means the current page is not a loaded
-  conversation view, the page is still loading, or ChatGPT changed the DOM more
-  substantially than the local capture shows.
-
-Typing/activity validation is separate:
-
-```js
 __ccxDebug.explainActivity()
+__ccxDebug.dumpInventory()
 ```
 
-Focus the composer, type or start IME composition, and run the command immediately.
-`active` or `composing` should become `true`, and `activeElementIsComposer` should
-be `true` while focus is in ChatGPT's editor.
-
-Recommended real-page spot checks:
+Recommended spot checks:
 
 - short conversation
-- long conversation
+- long conversation at the bottom
+- scrolling far enough to unmount and remount old turns
 - route navigation without full reload
 - active or recently streaming conversation
+- hide mode and delete mode separately
 
-No additional selector broadening should happen unless these debug reports show a
-concrete mismatch.
+No selector broadening should happen unless diagnostics show a concrete mismatch. A
+load-readiness problem must not be solved by matching more nodes.

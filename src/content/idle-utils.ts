@@ -9,6 +9,8 @@
 //   - 不決定何時 trim，只提供 idle 排程原語。
 // ------------------------------------------------------------
 
+import { IDLE } from "./constants";
+
 export type IdleHandle = number | ReturnType<typeof setTimeout>;
 
 /* ----------------------------- */
@@ -24,11 +26,11 @@ export function requestIdle(
 	if (typeof anyWin.requestIdleCallback === "function") {
 		return anyWin.requestIdleCallback(fn, opts);
 	}
-	// fallback：模擬 IdleDeadline，預設 timeRemaining ~16ms
+	// fallback：模擬 IdleDeadline
 	return window.setTimeout(() => {
 		fn({
 			didTimeout: false,
-			timeRemaining: () => 16,
+			timeRemaining: () => IDLE.FALLBACK_TIME_REMAINING_MS,
 		} as IdleDeadline);
 	}, opts?.timeout ?? 0);
 }

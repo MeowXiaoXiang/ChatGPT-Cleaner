@@ -10,8 +10,8 @@
 // ------------------------------------------------------------
 
 import type { Mode, TrimResult } from "./types";
-
-const SAMPLE_LIMIT = 8;
+import type { LoadReadinessSnapshot } from "./load-readiness";
+import { DEBUG_RUNTIME } from "./constants";
 
 export interface DebugMetrics {
 	mode: Mode;
@@ -36,6 +36,7 @@ export interface DebugMetrics {
 		composerCandidateCount: number;
 		activeElementIsComposer: boolean;
 	};
+	loadReadiness: LoadReadinessSnapshot;
 }
 
 export interface ForceTrimDebugResult {
@@ -77,8 +78,10 @@ export interface SelectorProbeCounts {
 	conversationTestIdCount: number;
 	turnTestIdCount: number;
 	sectionTurnIdCount: number;
-	articleTurnIdCount: number;
 	composerCandidateCount: number;
+	wrapperCount: number;
+	intersectingWrapperCount: number;
+	placeholderWrapperCount: number;
 }
 
 export interface SelectorDebugReport {
@@ -103,6 +106,8 @@ export interface SelectorDebugReport {
 		other: number;
 	};
 	contentVisibilityCount: number;
+	virtualizationDetected: boolean;
+	loadReadiness: LoadReadinessSnapshot;
 	samples: SelectorDebugSample[];
 	candidateSamples: SelectorDebugSample[];
 }
@@ -178,6 +183,7 @@ export function mountDebugConsole(opts: {
 				longTaskAvgMs: metrics.longTaskAvgMsEMA,
 			},
 			activity: metrics.activity,
+			readiness: metrics.loadReadiness,
 		});
 		console.log("raw metrics", metrics);
 		console.groupEnd();
@@ -224,6 +230,7 @@ export function mountDebugConsole(opts: {
 				derived: {
 					visibleCount: report.visibleCount,
 					contentVisibilityCount: report.contentVisibilityCount,
+					virtualizationDetected: report.virtualizationDetected,
 				},
 				authors: {
 					user: report.authorCounts.user,
@@ -233,6 +240,7 @@ export function mountDebugConsole(opts: {
 			});
 			console.table(report.page);
 			console.table(report.probeCounts);
+			console.table(report.loadReadiness);
 			if (report.samples.length) console.table(report.samples);
 			if (report.candidateSamples.length) {
 				console.table(report.candidateSamples);
@@ -260,15 +268,20 @@ export function mountDebugConsole(opts: {
 			console.groupEnd();
 			return report;
 		},
-		watchMetrics(seconds = 10) {
+		watchMetrics(seconds = DEBUG_RUNTIME.DEFAULT_WATCH_SECONDS) {
 			clearWatchTimers();
 
 			const durationSeconds =
-				Number.isFinite(seconds) && seconds > 0 ? seconds : 10;
+				Number.isFinite(seconds) && seconds > 0
+					? seconds
+					: DEBUG_RUNTIME.DEFAULT_WATCH_SECONDS;
 			const durationMs = Math.round(durationSeconds * 1000);
 
 			report();
-			watchTimer = window.setInterval(report, 1000);
+			watchTimer = window.setInterval(
+				report,
+				DEBUG_RUNTIME.WATCH_INTERVAL_MS
+			);
 			watchStopTimer = window.setTimeout(() => {
 				clearWatchTimers();
 				console.log(
@@ -302,7 +315,7 @@ export function mountDebugConsole(opts: {
 			"  __ccxDebug.dumpInventory()",
 			"  __ccxDebug.explainSelectors()",
 			"  __ccxDebug.explainActivity()",
-			"  __ccxDebug.watchMetrics(10)",
+			`  __ccxDebug.watchMetrics(${DEBUG_RUNTIME.DEFAULT_WATCH_SECONDS})`,
 			"  __ccxDebug.stopWatch()",
 		].join("\n"),
 		"color:#93c5fd;font-weight:700;"
@@ -335,7 +348,7 @@ export function sampleElements(
 	const seen = new WeakSet<Element>();
 
 	for (const item of items) {
-		if (out.length >= SAMPLE_LIMIT) break;
+		if (out.length >= DEBUG_RUNTIME.SAMPLE_LIMIT) break;
 		if (seen.has(item.el)) continue;
 		seen.add(item.el);
 
@@ -345,7 +358,9 @@ export function sampleElements(
 			tag: item.el.tagName.toLowerCase(),
 			id: html.id || "",
 			className:
-				typeof html.className === "string" ? html.className.slice(0, 120) : "",
+				typeof html.className === "string"
+					? html.className.slice(0, DEBUG_RUNTIME.CLASS_NAME_LIMIT)
+					: "",
 			testId: item.el.getAttribute("data-testid") || "",
 			turnId: item.el.getAttribute("data-turn-id") || "",
 			turn: item.el.getAttribute("data-turn") || "",

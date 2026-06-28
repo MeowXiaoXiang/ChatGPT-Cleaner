@@ -1,5 +1,11 @@
 # v2 Roadmap
 
+> [!CAUTION]
+> **Status: discontinued and never released.** Live testing confirmed that ChatGPT's
+> native conversation virtualization already addresses the original rendering problem,
+> while DOM Hide/Delete creates a mount/delete feedback loop during scrolling. The phases
+> below are retained only as historical development context.
+
 This document tracks the v2 cleanup and improvement line on `codex/v2`.
 
 The goal of v2 is to improve runtime stability, diagnostics, and maintainability before making visible UI changes. UI redesign and any fetch/API-level experiment are intentionally placed late because they require separate product decisions.
@@ -22,6 +28,7 @@ The product scope stays small:
 - Improve runtime safety around the existing behavior:
   - selector evidence
   - typing/activity guard
+  - conversation load-readiness guard
   - initial-load and route-change follow-up trims
   - clearer debug diagnostics
 - Refresh the normal UI after runtime status data is stable.
@@ -93,7 +100,7 @@ Acceptance baseline:
 
 ## Phase 1 - Selector Stability Baseline
 
-Status: Local research baseline done; real-page spot checks still recommended.
+Status: Local baseline done; real-page spot checks still recommended.
 
 Purpose: understand current selector behavior before changing selectors.
 
@@ -113,11 +120,10 @@ Work:
 
 Completed:
 
-- Added `docs/dev/selector-stability-notes.md` based on local rendered HTML and bundle
-  evidence under `research/`.
+- Added `docs/dev/selector-stability-notes.md` based on current local evidence.
 - Kept the primary selector unchanged.
-- Added `section[data-turn-id][data-turn]` to the fallback selector while keeping
-  `article[data-turn-id][data-turn]` for compatibility.
+  - Uses `section[data-turn-id][data-turn]` as the v2 fallback without retaining the v1
+    `article` branch.
 - Extended `__ccxDebug.explainSelectors()` with author distribution and
   content-visibility signal counts.
 - Extended selector diagnostics with broader page probes and candidate samples so a
@@ -192,6 +198,45 @@ Non-goals:
 
 - Do not add fetch/API limiting.
 - Do not force immediate bulk delete during heavy page load.
+
+## Phase 3.5 - Conversation Load Readiness
+
+Status: Implemented; real-page validation pending.
+
+Purpose: prevent automatic hide/delete from mutating React-owned turns before
+conversation fetch, hydration, and native turn virtualization have stabilized.
+
+Design note:
+
+- See `docs/dev/load-stability-plan.md`.
+
+Current evidence changes the earlier assumption that delayed follow-up timers alone are
+enough:
+
+- `document_idle` can precede conversation fetch and hydration.
+- ChatGPT can unmount older inner turn sections while retaining logical placeholder
+  wrappers.
+- Mounted selector count is therefore not the total logical conversation length.
+- Direct DOM deletion during hydration or native remount is a plausible source of the
+  generic `Content failed to load` error boundary.
+
+Implemented:
+
+- Added load-readiness and native-wrapper diagnostics.
+- Detects native turn wrappers without making them trim units.
+- Requires a stable, quiet sample window before product-level trim.
+- Queues manual Apply until ready; unsafe bypass is debug-only and warns.
+- Resets readiness on route change and keeps retrying after safe timeouts.
+- Watches the route-scoped thread instead of one per-turn wrapper.
+- Excludes empty virtualized turn shells from trim candidates.
+
+Acceptance baseline:
+
+- No automatic DOM mutation during initial hydration.
+- Native inner turn unmount/remount does not count as logical history removal.
+- Debug metrics explain readiness and wait reasons.
+
+This phase blocks Phase 4 and any fetch response modification.
 
 ## Phase 4 - Runtime Metrics For Product UI
 
@@ -282,6 +327,8 @@ Default decision:
   - debug or experimental only
   - delete-mode scoped
   - easy to disable
+  - observe-only before response modification is enabled
+  - tolerant of additive fields while strict about graph invariants
   - documented as affecting frontend-loaded history only
 
 Non-goals:
@@ -293,18 +340,19 @@ Non-goals:
 
 Recommended next action:
 
-1. Run real-page selector spot checks with
-   `__ccxDebug.explainSelectors()` and `__ccxDebug.explainActivity()`.
-2. Append any new findings to `docs/dev/selector-stability-notes.md`.
-3. Define a small runtime status snapshot for the normal UI:
+1. Reproduce initial load in hide and delete modes separately.
+2. Validate Phase 3.5 on route reuse, streaming, and background resume.
+3. Run real-page selector/activity spot checks, including offscreen unmount/remount.
+4. Define a small runtime status snapshot for the normal UI:
    - mode
    - maxKeep
    - visibleCount
    - hiddenCount
    - removedCount
    - suspended
-4. Add a focused data-plumbing commit for that status snapshot before changing panel UI.
-5. Revisit the main panel status refresh after the runtime snapshot is stable.
+5. Add a focused data-plumbing commit for that status snapshot before changing panel UI.
+6. Revisit the main panel status refresh after the runtime snapshot is stable.
 
-Keep the optional delete-mode API/history limiting experiment parked until selector
-behavior and normal UI status are both stable.
+The optional delete-mode API/history experiment may proceed only through observe-only
+classification and fixture work until load readiness is stable. Response replacement
+remains parked.

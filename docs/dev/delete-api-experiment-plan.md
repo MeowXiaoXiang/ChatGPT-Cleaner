@@ -1,17 +1,23 @@
 # Delete API Experiment Plan
 
-Date: 2026-05-23
+Updated: 2026-06-28
+
+> [!IMPORTANT]
+> Historical proposal for the unreleased `codex/v2` branch. The fetch/API experiment was
+> not completed or released, and project development has been discontinued. Do not treat
+> this file as an implementation commitment.
 
 This note defines the optional API/history-limiting experiment for `delete` mode.
 
-The normal product still has only two cleanup modes:
+The product still has only two cleanup modes:
 
 - `hide`
 - `delete`
 
-This experiment is not a third mode. It is a future opt-in accelerator for `delete`
-mode, and it must fail closed by returning ChatGPT responses unchanged whenever the
-private response shape is not exactly understood.
+This experiment is not a third mode. It is an opt-in accelerator for `delete` mode.
+Unexpected or ambiguous input must pass through unchanged and disable modification for
+the current page session. This is fail-open for ChatGPT and fail-closed for the
+experiment.
 
 ## Position
 
@@ -19,12 +25,14 @@ The default runtime should stay conservative:
 
 - selector diagnostics
 - typing/activity guard
-- initial-load and route-change follow-up trims
-- DOM hiding or DOM deletion through the existing trim engine
+- conversation load-readiness guard
+- initial-load and route-change follow-up checks
+- DOM hiding or deletion only after readiness is established
 
-API/history limiting should be explored only after the default runtime is easier to
-reason about. It depends on private ChatGPT response structures and can affect frontend
-conversation loading semantics, so it needs stronger guardrails than DOM hiding.
+API/history limiting depends on private ChatGPT response structures and can affect
+frontend conversation semantics. It needs stronger guardrails than DOM hiding. Native
+turn virtualization also means DOM deletion is not a safe fallback while hydration is
+still active.
 
 ## Required Gates
 
@@ -36,9 +44,10 @@ The experiment must be:
 - Exact-endpoint matched.
 - GET-only.
 - JSON-only.
-- Session self-disabling on unexpected shape.
+- Introduced through observe-only and dry-run phases first.
+- Session self-disabling on unexpected or ambiguous shape.
 - Manually disableable through a debug hook.
-- Logged with clear disable reasons when debug mode is enabled.
+- Logged with clear skip and disable reasons when debug mode is enabled.
 
 It must not:
 
@@ -46,58 +55,102 @@ It must not:
 - Touch send-message or mutation requests.
 - Make API limiting a normal product promise.
 - Run in `hide` mode.
-- Continue after a validation mismatch.
+- Continue modifying responses after a validation mismatch.
+- Filter mapping nodes solely to `user` and `assistant` roles.
 
-## Response Validation Contract
+## Compatibility Strategy
 
-Before modifying any response, the parser must verify:
+The parser should be tolerant of additive official changes:
 
-- Parsed value is a plain object.
-- `mapping` is a plain object.
+- Preserve unknown top-level fields.
+- Preserve unknown mapping-node fields.
+- Accept additional message roles and content types.
+- Do not require a fixed top-level key list.
+- Do not require a top-level `root` field.
+
+Tolerance applies to reading and preservation. It does not permit guessing when graph
+relationships are ambiguous.
+
+## Pre-Transform Validation
+
+Before planning a modification, verify:
+
+- Parsed value is object-like.
+- `mapping` is object-like.
 - `current_node` is a string key in `mapping`.
-- The path from `current_node` toward the root can be walked without cycles.
-- Retained nodes can be identified by stable keys.
-- Parent and child links are internally consistent enough to reconstruct safely.
-- The retained path includes at least the configured minimum number of recent message
-  nodes.
-- Unknown branches, missing nodes, cycles, unsupported payloads, or ambiguous structures
-  are treated as mismatches.
+- The path from `current_node` toward the root is finite and acyclic.
+- The original root can be discovered from mapping relationships.
+- Retained nodes can be identified by stable mapping keys.
+- Existing parent and child links are sufficiently consistent.
+- The retained path includes the configured minimum number of recent conversational
+  turns.
+- System, tool, developer, hidden, and unknown-role nodes between retained turns can be
+  preserved without interpretation.
+- Unknown branches can be preserved or removed deterministically without dangling
+  references.
 
-Any mismatch returns the original response and disables the experiment for the current
-page session.
+Missing nodes, cycles, unsupported payloads, or ambiguous relationships are mismatches.
+
+## Preservation Rule
+
+When a node is retained:
+
+- Start from its complete original object.
+- Preserve unknown fields.
+- Change only relationship fields required by the validated prune.
+- Preserve non-user/assistant nodes on the retained path.
+- Preserve the discovered original root identity.
+
+Do not rebuild retained messages from a hand-written subset of known fields.
+
+## Post-Transform Validation
+
+Before constructing a replacement `Response`, verify the transformed payload again:
+
+- `current_node` still resolves.
+- The retained current-node path is finite and acyclic.
+- Every retained `parent` reference resolves or is null only at the root.
+- Every retained `children` reference resolves.
+- Parent/child relationships agree in both directions where represented.
+- No omitted mapping key remains referenced.
+- The retained conversational turn target is satisfied.
+
+If post-transform validation fails, return the original response and self-disable.
 
 ## Fallback Behavior
 
 - If request matching fails, do nothing.
-- If cloning the response fails, return the original response.
-- If parsing JSON fails, return the original response.
-- If validation fails, return the original response and self-disable for the session.
-- If reconstruction fails, return the original response and self-disable for the session.
-- If a later debug signal suggests ChatGPT loading broke after a modified response, the
-  manual disable hook must remain available.
+- If cloning or parsing fails, return the original response.
+- If validation or reconstruction fails, return the original response and self-disable.
+- If a later signal suggests ChatGPT loading broke, the manual disable hook remains
+  available and subsequent responses pass through unchanged.
 
 ## Response Preservation Requirements
 
 When a response is modified:
 
-- Preserve status.
-- Preserve status text.
+- Preserve status and status text.
 - Preserve headers as closely as possible.
+- Remove only body-length/encoding headers invalidated by reconstruction.
 - Preserve non-target responses exactly.
 - Keep the modified body valid JSON.
 - Avoid changing unrelated response fields.
 
 ## Runtime State Needed
 
-Add a small experiment-state module before any fetch patch:
+Add a small experiment-state module before any response replacement:
 
 - enabled
+- mode (`observe`, `dry-run`, `modify`)
 - disabledForSession
 - lastDisableReason
 - originalResponsesPassedThrough
+- observeOnlyResponses
+- dryRunCandidates
 - responsesModified
 - shapeMismatches
 - reconstructionFailures
+- postTransformValidationFailures
 - selfDisableCount
 
 Suggested debug hooks:
@@ -107,23 +160,24 @@ Suggested debug hooks:
 
 ## Implementation Order
 
-1. Finish selector diagnostics and any selector baseline decision.
-2. Extract turn inventory from `main.ts`.
-3. Add typing/activity guard.
-4. Add initial-load and route-change follow-up trims.
-5. Add experiment state and debug hooks, with no fetch patch yet.
-6. Build fixture-based parser tests or fixture smoke scripts from captured response
-   samples.
-7. Prototype the fetch patch behind the experiment gate.
-8. Manually test on long conversations with debug logging enabled.
+1. Complete selector and native-wrapper diagnostics.
+2. Complete and validate the conversation load-readiness gate.
+3. Add experiment state and debug hooks, with no fetch patch yet.
+4. Add a page-world observe-only classifier that never replaces responses.
+5. Build sanitized structural fixtures from offline sample payloads.
+6. Implement pure path analysis and fixture validation.
+7. Add dry-run reports showing what would be retained and removed.
+8. Implement reconstruction plus post-transform validation.
+9. Prototype response replacement behind the opt-in experiment gate.
+10. Test short, long, branched, tool-heavy, and streaming conversations.
 
 ## Acceptance Criteria
 
 - Default install behavior is unchanged.
 - `hide` mode behavior is unchanged.
-- `delete` mode DOM deletion still works when the experiment is disabled.
-- The experiment can self-disable without breaking ChatGPT page loading.
-- Unexpected response shape returns the original response.
-- Debug output clearly explains whether the experiment modified, skipped, or disabled
-  itself.
-
+- Observe-only mode cannot alter ChatGPT responses.
+- Additive unknown fields and roles are preserved rather than rejected unnecessarily.
+- System, tool, hidden, and unknown-role nodes on the retained path are not discarded.
+- Unexpected or ambiguous shape returns the original response and self-disables.
+- Debug output explains whether a response was observed, skipped, dry-run planned,
+  modified, or caused session disablement.

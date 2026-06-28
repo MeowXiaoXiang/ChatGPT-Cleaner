@@ -10,12 +10,9 @@
 // ------------------------------------------------------------
 
 import type { LogFn } from "./types";
+import { ACTIVITY_GUARD, PAGE_SELECTORS, UI_SELECTORS } from "./constants";
 
-const DEFAULT_COOLDOWN_MS = 1200;
-const RETRY_PADDING_MS = 50;
-const COMPOSER_SELECTOR =
-	'textarea, input[type="text"], input[type="search"], [contenteditable="true"]';
-const INTERNAL_UI_SELECTOR = ".ccx-ui, .ccx-toast-container, .ccx-showmore-wrap";
+const INTERNAL_UI_SELECTOR = UI_SELECTORS.INTERNAL.join(",");
 
 export interface ActivityGuardSnapshot {
 	active: boolean;
@@ -35,7 +32,7 @@ export function createActivityGuard(opts: {
 	log: LogFn;
 	cooldownMs?: number;
 }): ActivityGuard {
-	const { log, cooldownMs = DEFAULT_COOLDOWN_MS } = opts;
+	const { log, cooldownMs = ACTIVITY_GUARD.COOLDOWN_MS } = opts;
 	let activeUntil = 0;
 	let composing = false;
 	let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -50,7 +47,8 @@ export function createActivityGuard(opts: {
 		return !!(
 			el?.nodeType === 1 &&
 			!isInternalTarget(el) &&
-			(el.matches?.(COMPOSER_SELECTOR) || el.closest?.(COMPOSER_SELECTOR))
+			(el.matches?.(PAGE_SELECTORS.COMPOSER) ||
+				el.closest?.(PAGE_SELECTORS.COMPOSER))
 		);
 	}
 
@@ -82,7 +80,9 @@ export function createActivityGuard(opts: {
 	function deferUntilIdle(callback: () => void, reason: string) {
 		if (retryTimer != null) clearTimeout(retryTimer);
 		const remaining = Math.max(0, activeUntil - Date.now());
-		const delay = composing ? cooldownMs : remaining + RETRY_PADDING_MS;
+		const delay = composing
+			? cooldownMs
+			: remaining + ACTIVITY_GUARD.RETRY_PADDING_MS;
 		log(`delay auto trim [${reason}] (activityGuard ${delay}ms)`);
 		retryTimer = setTimeout(() => {
 			retryTimer = null;

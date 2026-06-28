@@ -55,6 +55,26 @@ export const TRIM_THRESHOLD = {
 /** Mutation 最小處理間隔 (ms) - 防止滾動載入時過度觸發 */
 export const MIN_TRIM_INTERVAL_MS = 300;
 
+/**
+ * Composer activity guard
+ * - COOLDOWN_MS: 最近輸入後暫緩自動 trim 的時間
+ * - RETRY_PADDING_MS: 再排程時的保守緩衝
+ */
+export const ACTIVITY_GUARD = {
+	COOLDOWN_MS: 1200,
+	RETRY_PADDING_MS: 50,
+} as const;
+
+/** observer init / route change 後的保守追蹤檢查 */
+export const FOLLOW_UP_TRIMS = {
+	DELAYS_MS: [800, 1800, 3500, 6000] as readonly number[],
+} as const;
+
+/** DOM observer 的路由重新綁定參數 */
+export const OBSERVER = {
+	REBIND_DELAY_MS: 80,
+} as const;
+
 /* ============================================================
     LONG TASK GATE (長任務守門)
    ============================================================ */
@@ -108,9 +128,24 @@ export const BATCH = {
 	SLICE_UPPER_MS: 20,
 	/** 單批下限耗時 (ms) - 低於則增加批量 */
 	SLICE_LOWER_MS: 6,
-	/** 觸發批次刪除的門檻 - 超過此數量才用批次 */
-	BULK_THRESHOLD: 20,
-};
+	/** 動態批次門檻的最低值 */
+	BULK_THRESHOLD_MIN: 10,
+	/** 動態批次門檻 = maxKeep / 此值 */
+	BULK_THRESHOLD_DIVISOR: 2,
+	/** requestIdleCallback 無 timeRemaining 時的預設預算 */
+	FALLBACK_TIME_REMAINING_MS: 12,
+	/** 單 slice 最小時間預算 */
+	BUDGET_MIN_MS: 6,
+	/** 一般 / 大量 / 超大量刪除的時間預算 */
+	BUDGET_BASE_MS: 20,
+	BUDGET_LARGE_MS: 26,
+	BUDGET_HUGE_MS: 32,
+	/** 切換大量 / 超大量預算的剩餘節點門檻 */
+	LARGE_REMAINING_THRESHOLD: 1000,
+	HUGE_REMAINING_THRESHOLD: 5000,
+	/** 每次 idle slice 的 timeout */
+	IDLE_TIMEOUT_MS: 24,
+} as const;
 
 /* ============================================================
     TOAST NOTIFICATIONS (通知)
@@ -134,6 +169,28 @@ export const SHOW_MORE = {
 	UPDATE_THROTTLE_MS: 200,
 } as const;
 
+/** UI 行為時間；純 CSS / 圖示尺寸不放在這裡 */
+export const UI_TIMING = {
+	APPLY_FEEDBACK_MS: 1200,
+	ROOT_GUARD_DELAY_MS: 200,
+	SHOW_MORE_CLICK_DELAY_MS: 50,
+} as const;
+
+/** Debug console 的採樣參數 */
+export const DEBUG_RUNTIME = {
+	SAMPLE_LIMIT: 8,
+	CANDIDATE_GROUP_LIMIT: 4,
+	SURFACE_SAMPLE_LIMIT: 2,
+	CLASS_NAME_LIMIT: 120,
+	DEFAULT_WATCH_SECONDS: 10,
+	WATCH_INTERVAL_MS: 1000,
+} as const;
+
+/** requestIdleCallback fallback 提供的虛擬 frame 預算 */
+export const IDLE = {
+	FALLBACK_TIME_REMAINING_MS: 16,
+} as const;
+
 /* ============================================================
     WAKE / VISIBILITY (喚醒與可見性)
    ============================================================ */
@@ -143,6 +200,21 @@ export const WAKE = {
 	COOLDOWN_MS: 8000,
 	/** 回前景後忽略 mutation 的時間 (ms) */
 	RESUME_MUTE_MS: 1500,
+} as const;
+
+/* ============================================================
+    LOAD READINESS (對話載入就緒)
+   ============================================================ */
+
+export const LOAD_READINESS = {
+	/** 採樣間隔 (ms) */
+	SAMPLE_MS: 250,
+	/** 至少連續穩定樣本數 */
+	STABLE_SAMPLES: 3,
+	/** 相關 mutation 安靜時間 (ms) */
+	QUIET_MS: 900,
+	/** 單次等待超時 (ms) - 超時後仍繼續等穩定，不自動放行 */
+	TIMEOUT_MS: 12000,
 } as const;
 
 /* ============================================================
@@ -156,8 +228,8 @@ export const WAKE = {
 export const SELECTORS = {
 	/** 主選擇器：依 data-testid */
 	PRIMARY: '[data-testid^="conversation-turn-"]',
-	/** 備用選擇器：依 data-turn-id (ChatGPT 目前以 section 為 turn root，保留 article 相容) */
-	FALLBACK: "section[data-turn-id][data-turn], article[data-turn-id][data-turn]",
+	/** v2 備用選擇器：目前 ChatGPT 的 section turn root */
+	FALLBACK: "section[data-turn-id][data-turn]",
 } as const;
 
 /** 合併選擇器（用於 querySelectorAll） */
@@ -174,4 +246,15 @@ export const UI_SELECTORS = {
 		".ccx-toast-container",
 		".ccx-showmore-wrap",
 	],
+} as const;
+
+/**
+ * v2 ChatGPT 頁面契約。
+ * 這些 selector 用於 observer / readiness / activity，不是 trim 單位。
+ */
+export const PAGE_SELECTORS = {
+	THREAD: "#thread",
+	TURN_WRAPPER: "div[data-turn-id-container]",
+	COMPOSER:
+		'#prompt-textarea, textarea[name="prompt-textarea"], form[data-type="unified-composer"] [contenteditable="true"]',
 } as const;
