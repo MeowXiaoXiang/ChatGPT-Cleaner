@@ -2,6 +2,17 @@
 
 **🌐 語言選擇:** [English](../README.md) | [繁體中文](./README_zh-TW.md)
 
+> [!WARNING]
+> **本專案已停止維護，且不再建議繼續使用。**
+>
+> ChatGPT 現已內建對話虛擬化：為完整對話保留輕量的佔位結構，只實際渲染畫面附近
+> 的少量訊息，並在使用者捲動時重新載入較舊的內容。實機測試確認，這套官方機制已
+> 大幅涵蓋本擴充功能原本想改善的核心效能問題。
+>
+> 由於本擴充功能會直接隱藏或移除訊息元素，如今可能在捲動時與 ChatGPT 自己的渲染
+> 機制互相干擾，造成反覆處理、主執行緒負載增加、捲動不穩，甚至內容載入失敗。
+> 商店版本將撤下，本倉庫僅保留為封存的技術紀錄。
+
 <!-- markdownlint-disable MD033 -->
 
 <p align="center">
@@ -9,21 +20,24 @@
 </p>
 <!-- markdownlint-enable MD033 -->
 
-輕量化清理 ChatGPT 對話：保留最新訊息，隱藏或刪除較舊內容，降低頁面負擔。
+曾用於清理 ChatGPT 對話的擴充功能；現僅保留為封存的技術紀錄。
 
-![version](https://img.shields.io/badge/version-1.1.1-2563EB)
+![status](https://img.shields.io/badge/status-discontinued-B91C1C)
+![last_release](https://img.shields.io/badge/last_release-1.1.1-64748B)
 ![Manifest v3](https://img.shields.io/badge/Manifest-v3-334155)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)
 ![License](https://img.shields.io/badge/License-MIT-10B981)
 
 ---
 
-## 下載安裝
+## 專案狀態
 
-* **Chrome 線上應用程式商店**: [前往安裝](https://chromewebstore.google.com/detail/dklkegnbfbgdafdbipiplcbijklpkklp)
-* **Microsoft Edge 附加元件**: [前往安裝](https://microsoftedge.microsoft.com/addons/detail/ifmghkemkdghcflndnpldoookcfhinaj)
+不再建議新的安裝。Chrome 線上應用程式商店與 Microsoft Edge 附加元件版本將隨
+專案收尾撤下。
 
-## 特色
+以下內容僅保留為最後公開版本的歷史文件。
+
+## 歷史功能
 
 * 模式選擇：
 
@@ -63,7 +77,7 @@
 
 ---
 
-## 安裝（手動載入）
+## 歷史開發環境設定（請勿作為一般安裝方式）
 
 1. 取得程式碼並安裝依賴（Yarn 4 + Corepack + PnP）
 
@@ -97,7 +111,7 @@
 
 ---
 
-## 使用方式
+## 歷史使用方式
 
 * 工具列按鈕：點擊切換啟用/停用（徽章顯示 ON/OFF）。
 * 懸浮球（右下）：點擊開啟面板設定 Keep up to / Mode（Hide 或 Delete）/ Notifications。
@@ -164,7 +178,7 @@
 
 ---
 
-## 開發
+## 歷史開發
 
 ```bash
 # 型別檢查

@@ -2,6 +2,21 @@
 
 **🌐 Languages:** [English](./README.md) | [繁體中文](./docs/README_zh-TW.md)
 
+> [!WARNING]
+> **This project is discontinued and is no longer recommended for use.**
+>
+> ChatGPT now includes native conversation virtualization. It keeps lightweight
+> placeholders for the full conversation, renders only a small window of messages near
+> the viewport, and loads older message content again as the user scrolls. Live testing
+> confirmed that this built-in behavior now covers the core performance problem this
+> extension was created to address.
+>
+> Because this extension directly hides or removes message elements, it can now compete
+> with ChatGPT's own rendering system during scrolling. This may cause repeated work,
+> higher main-thread load, unstable scrolling, or failed content rendering. Store
+> listings are being withdrawn, and this repository is retained only as an archived
+> technical reference.
+
 <!-- markdownlint-disable MD033 -->
 
 <p align="center">
@@ -9,21 +24,24 @@
 </p>
 <!-- markdownlint-enable MD033 -->
 
-Lightweight ChatGPT conversation cleaner: Keep recent messages, hide or delete older content to reduce page load.
+Former ChatGPT conversation cleaner, retained as an archived technical reference.
 
-![version](https://img.shields.io/badge/version-1.1.1-2563EB)
+![status](https://img.shields.io/badge/status-discontinued-B91C1C)
+![last_release](https://img.shields.io/badge/last_release-1.1.1-64748B)
 ![Manifest v3](https://img.shields.io/badge/Manifest-v3-334155)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)
 ![License](https://img.shields.io/badge/License-MIT-10B981)
 
 ---
 
-## Download
+## Project Status
 
-* **Chrome Web Store**: [Install here](https://chromewebstore.google.com/detail/dklkegnbfbgdafdbipiplcbijklpkklp)
-* **Microsoft Edge Add-ons**: [Install here](https://microsoftedge.microsoft.com/addons/detail/ifmghkemkdghcflndnpldoookcfhinaj)
+New installations are no longer recommended. The Chrome Web Store and Microsoft Edge
+Add-ons listings are being withdrawn as part of the project shutdown.
 
-## Features
+Everything below is retained as historical documentation for the last public release.
+
+## Historical Features
 
 * **Cleaning Modes:**
   * **Hide**: Remove older messages from view but keep in DOM, restorable anytime
@@ -62,7 +80,7 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ---
 
-## Installation (Manual Loading)
+## Historical Development Setup (Do Not Install for Normal Use)
 
 1. Get the code and install dependencies (Yarn 4 via Corepack + PnP)
 
@@ -96,7 +114,7 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ---
 
-## Usage
+## Historical Usage
 
 * **Toolbar Button**: Click to toggle enable/disable (badge shows ON/OFF)
 * **Floating Ball (bottom right)**: Click to open panel settings for Keep up to / Mode (Hide or Delete) / Notifications
@@ -163,7 +181,7 @@ In short: This tool is a "frontend view layer organizer" that tries not to confl
 
 ---
 
-## Development
+## Historical Development
 
 ```bash
 # Type checking
